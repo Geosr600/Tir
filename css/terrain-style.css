@@ -1,0 +1,259 @@
+:root {
+  --t-bg: #f4f6fa;
+  --t-ink: #1a1a2e;
+  --t-primary: #1a1a2e;
+  --t-primary-ink: #fff;
+  --t-vert: #2e7d32;
+  --t-jaune: #f9a825;
+  --t-rouge: #c62828;
+  --t-border: #d8dce6;
+  --t-card-bg: #fff;
+  --t-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--t-bg);
+  color: var(--t-ink);
+  font-size: 16px;
+  overscroll-behavior-y: contain;
+}
+
+.t-header {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--t-primary); color: var(--t-primary-ink);
+  padding: 14px 16px; padding-top: max(14px, env(safe-area-inset-top));
+  font-weight: 700;
+}
+.t-title { font-size: 16px; }
+.t-sw-status { font-size: 11px; opacity: .8; }
+
+#t-main { padding: 14px; padding-bottom: calc(90px + var(--t-safe-area-bottom)); max-width: 720px; margin: 0 auto; }
+
+.t-screen { display: block; }
+
+.t-card {
+  background: var(--t-card-bg);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.t-card-flat { padding: 12px; }
+.t-card h2 { margin: 0 0 10px; font-size: 17px; }
+
+.t-hint { font-size: 13px; color: #666; line-height: 1.5; }
+
+.t-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 48px;
+  margin-top: 10px;
+  padding: 12px 16px;
+  border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700;
+  cursor: pointer;
+}
+.t-btn-primary { background: var(--t-primary); color: var(--t-primary-ink); }
+.t-btn-secondary { background: #e8eaf0; color: var(--t-ink); }
+.t-btn-danger { background: #fdecea; color: var(--t-rouge); }
+.t-btn-small { min-height: 38px; font-size: 13px; padding: 8px 12px; width: auto; margin-top: 0; }
+.t-btn:active { opacity: .8; }
+
+.t-file-input { display: none; }
+
+.t-status { margin-top: 10px; font-size: 13px; color: #444; }
+.t-status.ok { color: var(--t-vert); font-weight: 700; }
+.t-status.error { color: var(--t-rouge); font-weight: 700; }
+
+.t-bottom-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: flex; gap: 10px;
+  padding: 10px 14px; padding-bottom: calc(10px + var(--t-safe-area-bottom));
+  background: var(--t-card-bg);
+  border-top: 1px solid var(--t-border);
+}
+.t-bottom-bar .t-btn { margin-top: 0; }
+
+/* ── Liste des tireurs ── */
+.t-tireur-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--t-border);
+  cursor: pointer;
+}
+.t-tireur-row:last-child { border-bottom: none; }
+.t-tireur-nom { flex: 1; font-weight: 700; font-size: 14.5px; }
+.t-tireur-sub { font-size: 12px; color: #888; }
+.t-badge { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 20px; white-space: nowrap; }
+.t-badge-todo { background: #eceff5; color: #888; }
+.t-badge-progress { background: #fff4d6; color: #b8860b; }
+.t-badge-done { background: #e3f3e2; color: var(--t-vert); }
+.t-badge-absent { background: #f0f0f0; color: #aaa; }
+
+/* ── Fiche tireur ── */
+.t-fiche-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.t-fiche-header h2 { margin: 0; font-size: 17px; }
+
+.t-present-toggle { display: flex; gap: 8px; margin: 12px 0; }
+.t-present-toggle .t-btn { margin-top: 0; }
+.t-present-toggle .t-btn.on.present { background: var(--t-vert); color: #fff; }
+.t-present-toggle .t-btn.on.absent { background: var(--t-rouge); color: #fff; }
+
+.t-seclabel {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: #888; margin: 18px 0 8px;
+}
+
+.t-ligne-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eef0f5;
+}
+.t-ligne-num { width: 22px; font-weight: 700; font-size: 13px; color: #888; flex-shrink: 0; }
+.t-ligne-label { flex: 1; font-size: 13px; min-width: 0; }
+.t-ligne-eliminatoire { color: var(--t-rouge); font-weight: 700; }
+
+.t-tri-color { display: flex; gap: 6px; flex-shrink: 0; }
+.t-color-btn {
+  width: 38px; height: 38px; border-radius: 8px; border: 2px solid transparent;
+  cursor: pointer; opacity: .35;
+}
+.t-color-btn.vert  { background: var(--t-vert); }
+.t-color-btn.jaune { background: var(--t-jaune); }
+.t-color-btn.rouge { background: var(--t-rouge); }
+.t-color-btn.on { opacity: 1; border-color: var(--t-ink); transform: scale(1.05); }
+
+.t-nosafe-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 8px; background: #f0f0f0;
+  font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+}
+.t-nosafe-toggle.on { background: var(--t-rouge); color: #fff; }
+
+.t-input, .t-textarea, .t-select {
+  width: 100%; padding: 10px 12px; margin-top: 4px;
+  border: 1px solid var(--t-border); border-radius: 8px;
+  font-size: 14px; font-family: inherit; background: #fff;
+}
+.t-textarea { resize: vertical; min-height: 60px; }
+.t-fg { margin-bottom: 10px; }
+.t-fg label { font-size: 12px; font-weight: 700; color: #555; }
+
+.t-score-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eef0f5; }
+.t-score-input { width: 64px; text-align: center; font-size: 16px; font-weight: 700; padding: 8px 4px; }
+
+/* ISTC lignes avec libellé complet */
+.t-ligne-row--avec-libelle { flex-wrap: wrap; align-items: flex-start; gap: 6px 8px; padding: 10px 0; }
+.t-ligne-row--avec-libelle .t-ligne-num { padding-top: 2px; }
+.t-ligne-libelle { flex: 1; font-size: 12px; line-height: 1.35; min-width: 0; color: var(--t-ink); }
+.t-ligne-libelle.t-ligne-eliminatoire { font-weight: 700; }
+.t-ligne-row--avec-libelle .t-tri-color { align-self: center; }
+.t-cat-cart { display: inline-block; font-weight: 700; color: #555; min-width: 28px; }
+
+/* Séquences test tir */
+.t-seq-bloc { padding: 10px 0; border-bottom: 1px solid #eef0f5; }
+.t-seq-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.t-seq-libelle { flex: 1; font-size: 12px; line-height: 1.35; color: var(--t-ink); }
+.t-seq-meta-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.t-seq-meta-item { font-size: 11px; color: #666; background: #f3f4f8; border-radius: 6px; padding: 3px 7px; flex-shrink: 0; }
+.t-seq-score-wrap { display: flex; align-items: center; gap: 5px; margin-left: auto; flex-shrink: 0; }
+.t-seq-scoremax { font-size: 13px; font-weight: 700; color: #555; }
+.t-seq-total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 8px; border-top: 2px solid #eef0f5; }
+
+.t-result-banner {
+  margin-top: 14px; padding: 14px; border-radius: 10px;
+  text-align: center; font-weight: 800; font-size: 15px;
+}
+.t-result-banner.REUSSITE { background: #e3f3e2; color: var(--t-vert); }
+.t-result-banner.ECHEC { background: #fdecea; color: var(--t-rouge); }
+
+/* ── Signature — bouton + thumbnail inline ── */
+.t-sig-btn-wrap { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.t-sig-thumbnail { height: 52px; flex: 1; border-radius: 6px; border: 1px solid var(--t-border); background: #fff; object-fit: contain; }
+.t-sig-status { font-size: 12px; margin-top: 4px; }
+.t-sig-status.ok { color: var(--t-vert); font-weight: 700; }
+
+/* ── Modale signature plein écran ── */
+.t-sig-modal {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,.72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px;
+}
+.t-sig-modal-inner {
+  background: var(--t-card-bg); border-radius: 16px;
+  width: 100%; max-width: 600px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,.35);
+}
+.t-sig-modal-header {
+  padding: 14px 18px;
+  font-weight: 700; font-size: 15px;
+  border-bottom: 1px solid var(--t-border);
+  flex-shrink: 0;
+}
+.t-sig-modal-canvas {
+  display: block; width: 100%;
+  background: #fff; touch-action: none; cursor: crosshair;
+  border-bottom: 1px dashed var(--t-border);
+}
+.t-sig-modal-hint {
+  font-size: 11px; color: #999; text-align: center;
+  padding: 6px 12px; flex-shrink: 0;
+}
+.t-sig-modal-actions {
+  display: flex; gap: 8px; padding: 10px 12px; flex-shrink: 0;
+}
+
+/* ── Champ date repositionné en tête de section ── */
+.t-date-field { margin-bottom: 14px; }
+.t-date-hint { font-weight: 400; color: #999; font-size: 10px; }
+
+/* ── Boutons score Test tir ── */
+.t-score-btn-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.t-score-btn {
+  min-width: 46px; min-height: 46px;
+  border: 2px solid var(--t-border); border-radius: 8px;
+  background: #f5f6fa; color: var(--t-ink);
+  font-size: 16px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+}
+.t-score-btn.on { background: var(--t-primary); color: #fff; border-color: var(--t-primary); }
+.t-score-btn:active { opacity: .75; }
+
+/* ── Clôture — layout ── */
+.t-cl-row { display: flex; gap: 12px; }
+.t-cl-half { flex: 1; }
+
+/* Boutons segmentés (réalisée / annulée) */
+.t-seg-ctrl { display: flex; gap: 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--t-border); margin-top: 4px; }
+.t-seg-btn { flex: 1; padding: 10px; background: #f5f6fa; border: none; font-size: 13px; font-weight: 700; cursor: pointer; color: #666; }
+.t-seg-btn.on { background: var(--t-accent); color: #fff; }
+.t-seg-btn.on.danger { background: var(--t-rouge); }
+
+/* Bilans auto */
+.t-bilan-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; }
+.t-bilan-ok { background: #e3f3e2; }
+.t-bilan-partiel { background: #fff3cd; }
+.t-bilan-label { font-weight: 700; font-size: 13px; }
+.t-bilan-val { font-size: 14px; font-weight: 800; }
+
+/* Munitions */
+.t-mun-bloc { border: 1px solid var(--t-border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.t-mun-ref { font-weight: 700; font-size: 13px; margin-bottom: 10px; color: var(--t-ink); }
+.t-mun-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; }
+.t-mun-label { font-size: 12px; color: #555; }
+.t-mun-val { font-size: 14px; font-weight: 700; text-align: right; }
+.t-mun-readonly { color: #888; }
+.t-mun-input { width: 80px; text-align: center; padding: 6px 4px; font-size: 14px; font-weight: 700; }
+.t-mun-ecart-label { font-weight: 700; }
+.t-ecart-val { font-size: 16px; }
+.t-ecart-alerte { color: var(--t-rouge); font-weight: 800; }
+.t-mun-obs-wrap { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--t-border); }
+
+/* ── Export ── */
+.t-export-doc-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; }
+.t-export-doc-row a { color: var(--t-primary); font-weight: 700; }

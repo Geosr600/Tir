@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<title>Saisie terrain — ISTC / Tir</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tir terrain">
+<link rel="stylesheet" href="css/terrain-style.css">
+</head>
+<body>
+
+<header class="t-header">
+  <div class="t-title">🎯 Saisie terrain — ISTC / Tir</div>
+  <div id="t-sw-status" class="t-sw-status">—</div>
+</header>
+
+<main id="t-main">
+
+  <!-- ── Écran 1 : import ───────────────────────────────────────────── -->
+  <section id="screen-import" class="t-screen">
+    <div class="t-card">
+      <h2>📥 Importer une séance</h2>
+      <p class="t-hint">Sélectionnez le fichier <code>seance_terrain_*.json</code> exporté depuis l'application principale (onglet 5 — Récapitulatif).</p>
+      <input type="file" id="import-file-input" accept=".json,application/json,text/plain" class="t-file-input">
+      <label for="import-file-input" class="t-btn t-btn-primary" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center">Choisir un fichier…</label>
+      <div id="import-status" class="t-status"></div>
+    </div>
+    <div class="t-card" id="resume-seance-card" style="display:none">
+      <h2>📋 Séance en cours</h2>
+      <div id="resume-seance-content"></div>
+      <button class="t-btn t-btn-primary" onclick="goToListe()">Continuer la saisie →</button>
+      <button class="t-btn t-btn-danger" onclick="confirmResetSeance()">🗑 Effacer et importer une nouvelle séance</button>
+    </div>
+  </section>
+
+  <!-- ── Écran 2 : liste des tireurs ────────────────────────────────── -->
+  <section id="screen-liste" class="t-screen" style="display:none">
+    <div class="t-card t-card-flat">
+      <h2 id="liste-titre">📋 Tireurs</h2>
+      <div id="liste-tireurs"></div>
+    </div>
+    <div class="t-bottom-bar">
+      <button class="t-btn t-btn-secondary" onclick="goToImport()">← Séance</button>
+      <button class="t-btn t-btn-primary" onclick="goToExport()">📦 Export / Mail →</button>
+    </div>
+  </section>
+
+  <!-- ── Écran 3 : fiche tireur ─────────────────────────────────────── -->
+  <section id="screen-fiche" class="t-screen" style="display:none">
+    <div id="fiche-content"></div>
+    <div class="t-bottom-bar">
+      <button class="t-btn t-btn-secondary" onclick="goToListe()">← Liste des tireurs</button>
+    </div>
+  </section>
+
+  <!-- ── Écran 4 : export / mail ────────────────────────────────────── -->
+  <section id="screen-export" class="t-screen" style="display:none">
+    <div class="t-card">
+      <h2>📦 Export des résultats</h2>
+      <div id="export-summary"></div>
+      <button class="t-btn t-btn-primary" onclick="genererExportComplet()">⚙ Générer PDF + JSON</button>
+      <div id="export-progress" class="t-status"></div>
+      <div id="export-result"></div>
+    </div>
+    <div class="t-card" id="mail-card" style="display:none">
+      <h2>✉ Préparer le mail</h2>
+      <p class="t-hint">Le mail contient un résumé de la séance. Les PDF/ZIP générés sont joints automatiquement si votre appareil le permet, sinon téléchargez le ZIP et joignez-le vous-même.</p>
+      <button class="t-btn t-btn-primary" onclick="preparerMail()">✉ Préparer le mail</button>
+    </div>
+    <div class="t-bottom-bar">
+      <button class="t-btn t-btn-secondary" onclick="goToListe()">← Liste des tireurs</button>
+      <button class="t-btn t-btn-secondary" onclick="goToCloture()">📋 Clôturer la séance</button>
+    </div>
+  </section>
+
+  <!-- ── Écran 5 : clôture terrain ──────────────────────────────────── -->
+  <section id="screen-cloture" class="t-screen" style="display:none">
+    <div id="cloture-content"></div>
+    <div class="t-bottom-bar">
+      <button class="t-btn t-btn-secondary" onclick="goToExport()">← Export</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Modale signature plein écran ────────────────────────────────── -->
+<div id="sig-modal" class="t-sig-modal" style="display:none" ontouchstart="">
+  <div class="t-sig-modal-inner">
+    <div class="t-sig-modal-header">
+      <span id="sig-modal-title">Signature</span>
+    </div>
+    <canvas id="sig-modal-canvas" class="t-sig-modal-canvas"></canvas>
+    <div class="t-sig-modal-hint">Signez dans la zone ci-dessus au doigt ou au stylet</div>
+    <div class="t-sig-modal-actions">
+      <button type="button" class="t-btn t-btn-secondary" style="flex:1;margin-top:0"
+              onclick="clearSigModal()">🗑 Effacer</button>
+      <button type="button" class="t-btn t-btn-secondary" style="flex:1;margin-top:0"
+              onclick="closeSigModal()">✕ Annuler</button>
+      <button type="button" class="t-btn t-btn-primary" style="flex:1;margin-top:0"
+              onclick="validateSigModal()">✓ Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vendor (chargés en premier, pas de bundler) -->
+<script src="vendor/pdf-lib.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+
+<!-- App, ordre de dépendance -->
+<script src="js/regles.js"></script>
+<script src="js/db.js"></script>
+<script src="js/signature.js"></script>
+<script src="js/pdf-engine/coords.js"></script>
+<script src="js/pdf-engine/pdf-utils.js"></script>
+<script src="js/pdf-engine/fill-istc.js"></script>
+<script src="js/pdf-engine/fill-test-tir.js"></script>
+<script src="js/import.js"></script>
+<script src="js/saisie.js"></script>
+<script src="js/export.js"></script>
+<script src="js/mail.js"></script>
+<script src="js/cloture.js"></script>
+<script src="js/swipe.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
