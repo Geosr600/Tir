@@ -12,7 +12,7 @@
    - La PWA doit être utilisée au moins une fois en ligne (écran Export → "Générer")
      pour que les PDFs soient dans le cache avant de partir sur le terrain. */
 
-const CACHE_NAME = 'terrain-v5';
+const CACHE_NAME = 'terrain-v6';
 
 // Assets JS/CSS/HTML : obligatoires. L'install échoue si l'un est manquant.
 const PRECACHE_REQUIRED = [
