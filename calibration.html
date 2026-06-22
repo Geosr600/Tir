@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Calibration PDF — Dev</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:13px;background:#555;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+header{background:#1a1a2e;color:#fff;padding:6px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+header h1{font-size:13px;font-weight:600}
+select,input{font-size:12px;padding:4px 7px;border-radius:3px;border:1px solid #ccc}
+button{font-size:12px;padding:4px 10px;border-radius:3px;border:none;background:#2196f3;color:#fff;cursor:pointer}
+button:hover{filter:brightness(1.15)}
+button.green{background:#388e3c}
+.layout{display:flex;flex:1;overflow:hidden}
+#left{width:250px;min-width:250px;background:#fff;border-right:1px solid #ddd;display:flex;flex-direction:column;overflow:hidden}
+#left h2{font-size:11px;padding:6px 10px;background:#eee;border-bottom:1px solid #ddd;text-transform:uppercase;color:#555;letter-spacing:.4px;flex-shrink:0}
+#steps{flex:1;overflow-y:auto}
+.si{padding:6px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;display:flex;gap:6px;align-items:flex-start}
+.si:hover{background:#f5f9ff}
+.si.active{background:#e3f2fd;border-left:3px solid #2196f3}
+.si.done{background:#f1f8e9}
+.si-num{font-size:10px;color:#aaa;min-width:20px;padding-top:1px}
+.si-txt{font-size:11px;line-height:1.4;flex:1}
+.si-ok{color:#4caf50;font-size:14px}
+#canvas-area{flex:1;overflow:auto;position:relative;cursor:crosshair;user-select:none}
+#cv{display:block}
+#drag-box{position:absolute;border:2px dashed #ff5722;background:rgba(255,87,34,.12);pointer-events:none;display:none}
+#info{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:5px 14px;border-radius:5px;font:13px monospace;pointer-events:none;z-index:99}
+#right{width:300px;min-width:300px;background:#fff;border-left:1px solid #ddd;display:flex;flex-direction:column;overflow:hidden}
+#right h2{font-size:11px;padding:6px 10px;background:#eee;border-bottom:1px solid #ddd;text-transform:uppercase;color:#555;letter-spacing:.4px;flex-shrink:0}
+#recs{flex:1;overflow-y:auto;padding:6px;font:10px monospace}
+.ri{background:#f9f9f9;border:1px solid #e0e0e0;border-radius:2px;padding:2px 5px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#out-area{padding:6px;border-top:1px solid #eee;flex-shrink:0}
+#out-area textarea{width:100%;height:160px;font:10px monospace;border:1px solid #ccc;border-radius:3px;padding:4px;resize:vertical}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎯 Calibration PDF</h1>
+  <select id="tpl">
+    <option value="istc-fa">ISTC FA</option>
+    <option value="istc-pa">ISTC PA</option>
+    <option value="test-tir-fa">Test Tir FA</option>
+    <option value="test-tir-pa">Test Tir PA</option>
+  </select>
+  <button onclick="loadPdf()">Charger (serveur)</button>
+  <label style="font-size:12px;color:#ccc;cursor:pointer;background:#555;padding:4px 10px;border-radius:3px">
+    📂 Choisir PDF…
+    <input type="file" id="pdf-file-input" accept=".pdf" style="display:none" onchange="loadPdfFromFile(this)">
+  </label>
+  <label style="font-size:12px;color:#aaa">Zoom:</label>
+  <input type="range" id="zoom" min="1" max="3" step="0.25" value="1.5" style="width:80px" oninput="setZoom(+this.value)">
+  <span id="zoom-lbl" style="font-size:12px;color:#ccc">×1.5</span>
+  <span id="status" style="font-size:11px;color:#aaa;margin-left:4px"></span>
+  <button class="green" onclick="genCode()" style="margin-left:auto">⬇ Générer coords.js</button>
+</header>
+<div class="layout">
+  <div id="left">
+    <h2 id="steps-title">Étapes</h2>
+    <div id="steps"><div style="padding:12px;color:#aaa;font-size:12px">Chargez un template.</div></div>
+  </div>
+  <div id="canvas-area">
+    <canvas id="cv"></canvas>
+    <div id="drag-box"></div>
+  </div>
+  <div id="right">
+    <h2>Positions enregistrées</h2>
+    <div id="recs"></div>
+    <div id="out-area">
+      <button class="green" onclick="genCode()" style="width:100%;margin-bottom:6px">Générer coords.js</button>
+      <textarea id="out" placeholder="Code généré ici…"></textarea>
+    </div>
+  </div>
+</div>
+<div id="info">—</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.js';
+
+let SCALE = 1.5;
+let pdfRot = 0;       // PDF /Rotate value (0 or 90)
+let cvH = 0, cvW = 0; // rendered canvas dimensions in pixels
+let steps = [];
+let cur = 0;
+let rec = {};         // key -> {x,y} or {x,y,w,h}
+let dragA = null;     // drag start canvas coords
+
+// ── Step definitions ──────────────────────────────────────────────────────────
+
+function buildSteps(tpl) {
+  const isIstc = tpl.startsWith('istc');
+  if (isIstc) {
+    const nCat = tpl === 'istc-fa' ? 5 : 4;
+    const catSteps = [];
+    for (let i = 1; i <= nCat; i++) {
+      catSteps.push(
+        {k:`cat_y_${i}`,  m:'pt',   t:`[CAT ${i}] Cliquez sur le texte de la ligne ${i}`},
+        {k:`cat_r_${i}`,  m:'rect', t:`[CAT ${i}] Glissez sur la case ROUGE`},
+        {k:`cat_j_${i}`,  m:'rect', t:`[CAT ${i}] Glissez sur la case JAUNE`},
+        {k:`cat_v_${i}`,  m:'rect', t:`[CAT ${i}] Glissez sur la case VERTE`}
+      );
+    }
+    const connSteps = Array.from({length:12},(_,i)=>
+      ({k:`cy_${i+1}`, m:'pt', t:`[CONN ${i+1}] Cliquez sur la ligne ${i+1}`})
+    );
+    return [
+      {k:'h_nom',    m:'pt',   t:'[EN-TÊTE] Zone NOM du tireur'},
+      {k:'h_unite',  m:'pt',   t:'[EN-TÊTE] Zone UNITÉ'},
+      {k:'h_arme',   m:'pt',   t:'[EN-TÊTE] Zone ARME'},
+      {k:'h_date',   m:'pt',   t:'[EN-TÊTE] Zone DATE ISTC'},
+      {k:'cx_r',     m:'pt',   t:'[CONN] Centre cercle ROUGE — ligne 1'},
+      {k:'cx_j',     m:'pt',   t:'[CONN] Centre cercle JAUNE — ligne 1'},
+      {k:'cx_v',     m:'pt',   t:'[CONN] Centre cercle VERT — ligne 1'},
+      {k:'cx_comm',  m:'pt',   t:'[CONN] Colonne Commentaire (clic dans)'},
+      ...connSteps,
+      ...catSteps,
+      {k:'cx_ns',    m:'pt',   t:'[CAT] Colonne NO SAFE (clic dans)'},
+      {k:'sig_date', m:'pt',   t:'[SIG] Zone date de signature'},
+      {k:'sig_tir',  m:'rect', t:'[SIG] Glissez sur zone Tireur'},
+      {k:'sig_form', m:'rect', t:'[SIG] Glissez sur zone Formateur/MTC'},
+      {k:'sig_auto', m:'rect', t:'[SIG] Glissez sur zone Autorité'},
+    ];
+  } else {
+    const nSeq = tpl === 'test-tir-fa' ? 8 : 7;
+    const seqSteps = Array.from({length:nSeq},(_,i)=>
+      ({k:`seq_${i+1}`, m:'pt', t:`[SEQ ${i+1}] Case SCORE séquence ${i+1}`})
+    );
+    return [
+      {k:'h_nom',    m:'pt',   t:'[EN-TÊTE] Zone NOM du tireur'},
+      {k:'h_unite',  m:'pt',   t:'[EN-TÊTE] Zone UNITÉ'},
+      {k:'h_arme',   m:'pt',   t:'[EN-TÊTE] Zone ARME'},
+      {k:'h_date',   m:'pt',   t:'[EN-TÊTE] Zone DATE de tir'},
+      ...seqSteps,
+      {k:'total',    m:'pt',   t:'[TOTAL] Case total'},
+      {k:'res_ok',   m:'pt',   t:'[RÉSULTAT] Devant RÉUSSITE (où mettre ▶)'},
+      {k:'res_ko',   m:'pt',   t:'[RÉSULTAT] Devant ÉCHEC (où mettre ▶)'},
+      {k:'sig_date', m:'pt',   t:'[SIG] Zone date de signature'},
+      {k:'sig_tir',  m:'rect', t:'[SIG] Glissez sur zone Tireur'},
+      {k:'sig_form', m:'rect', t:'[SIG] Glissez sur zone Formateur/MTC'},
+      {k:'sig_auto', m:'rect', t:'[SIG] Glissez sur zone Autorité'},
+    ];
+  }
+}
+
+// ── PDF Loading ───────────────────────────────────────────────────────────────
+
+async function loadPdfFromFile(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  // Détecter le template depuis le nom de fichier
+  const fname = file.name.toLowerCase().replace(/[_\s]/g, '-');
+  let tpl = 'istc-fa';
+  if (fname.includes('test-tir-pa') || fname.includes('test-pa')) tpl = 'test-tir-pa';
+  else if (fname.includes('test-tir') || fname.includes('test-fa')) tpl = 'test-tir-fa';
+  else if (fname.includes('istc-pa') || fname.includes('pa')) tpl = 'istc-pa';
+  document.getElementById('tpl').value = tpl;
+  set('status', 'Lecture du fichier…');
+  try {
+    const buf = await file.arrayBuffer();
+    await _renderPdfBuffer(buf, tpl);
+  } catch(e) { set('status', '⚠ ' + e.message); alert('Erreur : ' + e.message); }
+}
+
+async function loadPdf() {
+  const tpl = document.getElementById('tpl').value;
+  set('status', 'Chargement depuis le serveur…');
+  try {
+    const res = await fetch('./assets/pdf-templates/' + tpl + '.pdf');
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' — utilisez "📂 Choisir PDF" si pas de serveur');
+    const buf = await res.arrayBuffer();
+    await _renderPdfBuffer(buf, tpl);
+  } catch(e) { set('status', '⚠ ' + e.message); alert('Erreur : ' + e.message); }
+}
+
+async function _renderPdfBuffer(buf, tpl) {
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  const page = await pdf.getPage(1);
+  pdfRot = page.rotate || 0;
+  await renderPage(page);
+  rec = {}; cur = 0;
+  steps = buildSteps(tpl);
+  document.getElementById('steps-title').textContent =
+    `Étapes — ${tpl} (${steps.length} champs)`;
+  repaintSteps();
+  repaintRecs();
+  set('status', `✓ ${tpl} — rotation PDF: ${pdfRot}°`);
+  set('out', '');
+}
+
+async function renderPage(page) {
+  const vp = page.getViewport({scale: SCALE});
+  const cv = document.getElementById('cv');
+  cv.width = cvW = vp.width;
+  cv.height = cvH = vp.height;
+  await page.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise;
+}
+
+function setZoom(s) {
+  SCALE = s;
+  document.getElementById('zoom-lbl').textContent = '×' + s;
+  // Re-render: reload PDF
+  loadPdf();
+}
+
+// ── Coordinate math ───────────────────────────────────────────────────────────
+
+function toPdf(cx, cy) {
+  // Canvas px → PDF content-stream coords (origin bottom-left, unrotated)
+  if (pdfRot === 90) {
+    // /Rotate 90 CW: content_x = cy/scale, content_y = cx/scale
+    return {x: round(cy / SCALE), y: round(cx / SCALE)};
+  }
+  return {x: round(cx / SCALE), y: round((cvH - cy) / SCALE)};
+}
+
+function rectToPdf(cx1, cy1, cx2, cy2) {
+  const minCx = Math.min(cx1, cx2), maxCx = Math.max(cx1, cx2);
+  const minCy = Math.min(cy1, cy2), maxCy = Math.max(cy1, cy2);
+  const w = round((maxCx - minCx) / SCALE);
+  const h = round((maxCy - minCy) / SCALE);
+  if (pdfRot === 90) {
+    return {x: round(minCy / SCALE), y: round(minCx / SCALE), w, h};
+  }
+  return {x: round(minCx / SCALE), y: round((cvH - maxCy) / SCALE), w, h};
+}
+
+function round(v) { return Math.round(v * 10) / 10; }
+
+// ── Mouse events ──────────────────────────────────────────────────────────────
+
+const cv = document.getElementById('cv');
+const dbox = document.getElementById('drag-box');
+
+function canvasXY(e) {
+  const r = cv.getBoundingClientRect();
+  return {cx: e.clientX - r.left, cy: e.clientY - r.top};
+}
+
+cv.addEventListener('mousemove', e => {
+  const {cx, cy} = canvasXY(e);
+  const {x, y} = toPdf(cx, cy);
+  document.getElementById('info').textContent = `x: ${x}  y: ${y}`;
+  if (dragA && steps[cur]?.m === 'rect') {
+    const r = cv.getBoundingClientRect();
+    const x0 = Math.min(dragA.cx, cx), x1 = Math.max(dragA.cx, cx);
+    const y0 = Math.min(dragA.cy, cy), y1 = Math.max(dragA.cy, cy);
+    dbox.style.cssText = `display:block;left:${x0}px;top:${y0}px;width:${x1-x0}px;height:${y1-y0}px`;
+  }
+});
+
+cv.addEventListener('mousedown', e => {
+  if (!steps.length || cur >= steps.length) return;
+  if (steps[cur].m === 'rect') {
+    dragA = canvasXY(e);
+    dbox.style.cssText = `display:block;left:${dragA.cx}px;top:${dragA.cy}px;width:0;height:0`;
+  }
+});
+
+cv.addEventListener('mouseup', e => {
+  if (!steps.length || cur >= steps.length) return;
+  const {cx, cy} = canvasXY(e);
+  const step = steps[cur];
+  if (step.m === 'rect' && dragA) {
+    dbox.style.display = 'none';
+    const val = rectToPdf(dragA.cx, dragA.cy, cx, cy);
+    dragA = null;
+    save(step.k, val);
+  }
+});
+
+cv.addEventListener('click', e => {
+  if (!steps.length || cur >= steps.length) return;
+  const step = steps[cur];
+  if (step.m !== 'pt') return;
+  const {cx, cy} = canvasXY(e);
+  save(step.k, toPdf(cx, cy));
+});
+
+function save(key, val) {
+  rec[key] = val;
+  if (cur < steps.length - 1) cur++;
+  repaintSteps();
+  repaintRecs();
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+
+function repaintSteps() {
+  document.getElementById('steps').innerHTML = steps.map((s, i) => {
+    const done = rec[s.k] !== undefined;
+    const active = i === cur;
+    return `<div class="si ${active?'active':''} ${done?'done':''}" onclick="cur=${i};repaintSteps()">
+      <span class="si-num">${i+1}</span>
+      <span class="si-txt">${s.t}</span>
+      ${done ? '<span class="si-ok">✓</span>' : active ? '<span style="color:#2196f3;font-size:13px">→</span>' : ''}
+    </div>`;
+  }).join('');
+  const el = document.querySelector('.si.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function repaintRecs() {
+  document.getElementById('recs').innerHTML = Object.entries(rec).map(([k, v]) => {
+    const s = v.w !== undefined
+      ? `{x:${v.x}, y:${v.y}, w:${v.w}, h:${v.h}}`
+      : `{x:${v.x}, y:${v.y}}`;
+    return `<div class="ri"><b>${k}:</b> ${s}</div>`;
+  }).join('') || '<div style="color:#aaa;padding:6px">Aucune position.</div>';
+}
+
+function set(id, val) {
+  const el = document.getElementById(id);
+  if (el) (el.tagName==='TEXTAREA' || el.tagName==='INPUT') ? el.value=val : el.textContent=val;
+}
+
+// ── Code generation ───────────────────────────────────────────────────────────
+
+function pt(k, fb) {
+  const v = rec[k] || fb || {x:0, y:0};
+  return `{x:${v.x}, y:${v.y}}`;
+}
+function box(k, fb) {
+  const v = rec[k] || fb || {x:0, y:0, w:25, h:22};
+  return `{x:${v.x}, y:${v.y}, w:${v.w||25}, h:${v.h||22}}`;
+}
+
+function genCode() {
+  const tpl = document.getElementById('tpl').value;
+  let code = '';
+
+  if (tpl.startsWith('istc')) {
+    const nCat = tpl === 'istc-fa' ? 5 : 4;
+    const conn = Array.from({length:12},(_,i) => {
+      const p = rec[`cy_${i+1}`] || {y:0};
+      return `      {n:${i+1},  y:${p.y}}`;
+    }).join(',\n');
+
+    const cat = Array.from({length:nCat},(_,i) => {
+      const n = i+1;
+      const yp = rec[`cat_y_${n}`] || {y:0};
+      const rp = rec[`cat_r_${n}`] || {x:0,y:0,w:28,h:22};
+      const jp = rec[`cat_j_${n}`] || {x:0,y:0,w:24,h:22};
+      const vp = rec[`cat_v_${n}`] || {x:0,y:0,w:24,h:22};
+      const ox = (rec.cx_comm||{x:0}).x;
+      return `      {n:${n}, y:${yp.y},\n`+
+             `        rouge:{x:${rp.x},y:${rp.y},w:${rp.w},h:${rp.h}},\n`+
+             `        jaune:{x:${jp.x},y:${jp.y},w:${jp.w},h:${jp.h}},\n`+
+             `        vert: {x:${vp.x},y:${vp.y},w:${vp.w},h:${vp.h}},\n`+
+             `        observationColX:${ox}}`;
+    }).join(',\n');
+
+    const sigTir  = rec.sig_tir  || {x:0,y:0,w:90,h:40};
+    const sigForm = rec.sig_form || {x:0,y:0,w:90,h:40};
+    const sigAut  = rec.sig_auto || {x:0,y:0,w:90,h:40};
+
+    code = `  '${tpl}': {
+    rotate: 0,
+    header: {
+      nomTireur: ${pt('h_nom')},
+      unite:     ${pt('h_unite')},
+      arme:      ${pt('h_arme')},
+      date:      ${pt('h_date')},
+    },
+    connaissancesCouleurX: {
+      rouge: ${(rec.cx_r||{x:0}).x},
+      jaune: ${(rec.cx_j||{x:0}).x},
+      vert:  ${(rec.cx_v||{x:0}).x},
+    },
+    connaissances: [
+${conn}
+    ],
+    commentaireColX: ${(rec.cx_comm||{x:0}).x},
+    noSafeColGlobalX: ${(rec.cx_ns||{x:0}).x},
+    catalogue: [
+${cat}
+    ],
+    signatures: {
+      date:      ${pt('sig_date')},
+      tireur:    {x:${sigTir.x},  y:${sigTir.y},  w:${sigTir.w||90},  h:${sigTir.h||40}},
+      formateur: {x:${sigForm.x}, y:${sigForm.y}, w:${sigForm.w||90}, h:${sigForm.h||40}},
+      autorite:  {x:${sigAut.x},  y:${sigAut.y},  w:${sigAut.w||90},  h:${sigAut.h||40}},
+    },
+  },`;
+  } else {
+    const nSeq = tpl === 'test-tir-fa' ? 8 : 7;
+    const seqs = Array.from({length:nSeq},(_,i) => {
+      const p = rec[`seq_${i+1}`] || {x:0,y:0};
+      return `      {n:${i+1}, x:${p.x}, y:${p.y}}`;
+    }).join(',\n');
+
+    const sigTir  = rec.sig_tir  || {x:0,y:0,w:50,h:40};
+    const sigForm = rec.sig_form || {x:0,y:0,w:50,h:40};
+    const sigAut  = rec.sig_auto || {x:0,y:0,w:50,h:40};
+
+    code = `  '${tpl}': {
+    rotate: 90,
+    header: {
+      nomTireur: ${pt('h_nom')},
+      unite:     ${pt('h_unite')},
+      arme:      ${pt('h_arme')},
+      date:      ${pt('h_date')},
+    },
+    sequences: [
+${seqs}
+    ],
+    total:        ${pt('total')},
+    resultatMark: {
+      reussite: ${pt('res_ok')},
+      echec:    ${pt('res_ko')},
+    },
+    signatures: {
+      date:      ${pt('sig_date')},
+      tireur:    {x:${sigTir.x},  y:${sigTir.y},  w:${sigTir.w||50},  h:${sigTir.h||40}},
+      formateur: {x:${sigForm.x}, y:${sigForm.y}, w:${sigForm.w||50}, h:${sigForm.h||40}},
+      autorite:  {x:${sigAut.x},  y:${sigAut.y},  w:${sigAut.w||50},  h:${sigAut.h||40}},
+    },
+  },`;
+  }
+  set('out', code);
+}
+</script>
+</body>
+</html>
