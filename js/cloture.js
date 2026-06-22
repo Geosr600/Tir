@@ -3,7 +3,6 @@
    séance réalisée/annulée, signature DT. Persisté dans IndexedDB store 'cloture'. */
 
 let _autoSaveClotureTimer = null;
-let _dtSigState = { canvas: null, ctx: null, drawing: false };
 
 /* ── Données par défaut ────────────────────────────────────────────── */
 
@@ -12,13 +11,13 @@ function buildDefaultCloture(seance) {
   if (seance.munitionsPrevues && seance.munitionsPrevues.length > 0) {
     munitions = seance.munitionsPrevues.map(m => ({
       ref: m.ref, prevues: m.qte || 0,
-      percues: 0, consommees: 0, reintegrees: 0, defaillantes: 0, observations: '',
+      consommees: m.qte || 0, reintegrees: 0, defaillantes: 0,
     }));
   } else {
     const refs = new Set();
     (seance.armesDisponibles || []).forEach(a => { if (a.munitionRef) refs.add(a.munitionRef); });
     munitions = Array.from(refs).map(ref => ({
-      ref, prevues: 0, percues: 0, consommees: 0, reintegrees: 0, defaillantes: 0, observations: '',
+      ref, prevues: 0, consommees: 0, reintegrees: 0, defaillantes: 0,
     }));
   }
   return {
@@ -34,6 +33,7 @@ function buildDefaultCloture(seance) {
     motifAnnulation: '',
     signatureDT: null,
     dateClotureTerrain: null,
+    cloturee: false,
   };
 }
 
@@ -54,17 +54,18 @@ function scheduleAutoSaveCloture() {
 /* ── Calculs ───────────────────────────────────────────────────────── */
 
 function calculerEcartMunitions(mun) {
-  return (mun.percues || 0) - (mun.consommees || 0) - (mun.reintegrees || 0) - (mun.defaillantes || 0);
+  const distribuees = mun.distribuees !== undefined ? (mun.distribuees || 0) : (mun.percues || 0);
+  return distribuees - (mun.consommees || 0) - (mun.reintegrees || 0) - (mun.defaillantes || 0);
 }
 
 function _bilanIstcAuto() {
-  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => s.present && s.categorieChoisie);
+  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement && s.present && s.categorieChoisie);
   const reussis = presents.filter(s => !calculerEliminatoireIstc(s.istcLignes || [], s.istcCatalogue || []));
   return { total: presents.length, reussis: reussis.length };
 }
 
 function _bilanTirAuto() {
-  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => s.present && s.categorieChoisie);
+  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement && s.present && s.categorieChoisie);
   const reussis = presents.filter(s =>
     calculerResultatTestTir(s.categorieChoisie, calculerTotalTestTir(s.testTirSequences || []), s.testTirNoSafe) === 'REUSSITE'
   );
@@ -159,60 +160,53 @@ function renderCloture() {
     <!-- Signature DT -->
     <div class="t-card">
       <h2>✍ Signature DT</h2>
-      <div class="t-sig-pad-wrap">
-        <canvas id="dt-sig-canvas" class="t-sig-pad"></canvas>
+      ${cl.signatureDT
+        ? `<img id="dt-sig-thumb" src="${cl.signatureDT}" class="t-sig-thumbnail" alt="Signature DT" style="display:block;margin-bottom:8px">`
+        : '<img id="dt-sig-thumb" class="t-sig-thumbnail" alt="" style="display:none">'
+      }
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="t-btn t-btn-primary" onclick="openDTSig()">✍ ${cl.signatureDT ? 'Re-signer' : 'Signer…'}</button>
+        ${cl.signatureDT ? '<button type="button" class="t-btn t-btn-secondary t-btn-small" onclick="clearDTSig()">🗑 Effacer</button>' : ''}
       </div>
-      <div class="t-sig-actions">
-        <button type="button" class="t-btn t-btn-secondary t-btn-small" onclick="clearDTSignature()">Effacer</button>
-      </div>
-      <div id="dt-sig-status" class="t-sig-status ${cl.signatureDT ? 'ok' : ''}">${cl.signatureDT ? '✓ Signé' : 'Non signé'}</div>
+      <div id="dt-sig-status" class="t-sig-status ${cl.signatureDT ? 'ok' : ''}" style="margin-top:6px">${cl.signatureDT ? '✓ Signé' : 'Non signé'}</div>
     </div>
 
+    <!-- Validation clôture -->
     <div class="t-card">
-      <p class="t-hint">La clôture est sauvegardée automatiquement. Elle sera intégrée dans le JSON lors de l'export final.</p>
+      ${cl.cloturee
+        ? `<div class="t-status ok" style="margin-bottom:10px">✓ Clôture validée le ${cl.dateClotureTerrain ? new Date(cl.dateClotureTerrain).toLocaleString('fr-FR') : '—'}</div>`
+        : '<p class="t-hint" style="margin-bottom:10px">Vérifiez toutes les informations ci-dessus, puis validez la clôture pour accéder à l\'export.</p>'
+      }
+      <button class="t-btn t-btn-primary" onclick="validerCloture()">${cl.cloturee ? '↻ Re-valider la clôture' : '✓ Valider la clôture →'}</button>
     </div>
   `;
 
-  requestAnimationFrame(() => _initDTSignaturePad());
+  requestAnimationFrame(() => _registerDTSigPad());
 }
 
 function _renderMunitionBloc(mun, idx) {
-  const ecart = calculerEcartMunitions(mun);
-  const ecartCls = ecart !== 0 ? 't-ecart-alerte' : '';
+  const consomme = (mun.prevues || 0) - (mun.defaillantes || 0) - (mun.reintegrees || 0);
+  const alerte = consomme < 0;
   return `
     <div class="t-mun-bloc">
       <div class="t-mun-ref">${mun.ref}</div>
       <div class="t-mun-grid">
-        <span class="t-mun-label">Prévues</span>
-        <span class="t-mun-val t-mun-readonly">${mun.prevues}</span>
+        <span class="t-mun-label">Prévu</span>
+        <input type="number" class="t-input t-mun-input" min="0" value="${mun.prevues||0}"
+               onchange="setMunitionField(${idx}, 'prevues', this.value)">
 
-        <span class="t-mun-label">Perçues</span>
-        <input type="number" class="t-input t-mun-input" min="0" value="${mun.percues||0}"
-               onchange="setMunitionField(${idx}, 'percues', this.value)">
-
-        <span class="t-mun-label">Consommées</span>
-        <input type="number" class="t-input t-mun-input" min="0" value="${mun.consommees||0}"
-               onchange="setMunitionField(${idx}, 'consommees', this.value)">
-
-        <span class="t-mun-label">Réintégrées</span>
-        <input type="number" class="t-input t-mun-input" min="0" value="${mun.reintegrees||0}"
-               onchange="setMunitionField(${idx}, 'reintegrees', this.value)">
-
-        <span class="t-mun-label">Défaillantes</span>
+        <span class="t-mun-label">Défaillante</span>
         <input type="number" class="t-input t-mun-input" min="0" value="${mun.defaillantes||0}"
                onchange="setMunitionField(${idx}, 'defaillantes', this.value)">
 
-        <span class="t-mun-label t-mun-ecart-label">Écart</span>
-        <span id="ecart-${idx}" class="t-mun-val t-ecart-val ${ecartCls}">${ecart}</span>
+        <span class="t-mun-label">Réintégré</span>
+        <input type="number" class="t-input t-mun-input" min="0" value="${mun.reintegrees||0}"
+               onchange="setMunitionField(${idx}, 'reintegrees', this.value)">
+
+        <span class="t-mun-label t-mun-ecart-label">Consommé</span>
+        <span id="consomme-${idx}" class="t-mun-val t-ecart-val ${alerte ? 't-ecart-alerte' : ''}">${consomme}</span>
       </div>
-      ${ecart !== 0 ? `
-      <div id="mun-obs-${idx}" class="t-fg t-mun-obs-wrap">
-        <label>⚠ Observation obligatoire (écart ≠ 0)</label>
-        <textarea class="t-textarea" onchange="setMunitionObservation(${idx}, this.value)">${mun.observations||''}</textarea>
-      </div>` : `<div id="mun-obs-${idx}" class="t-fg t-mun-obs-wrap" style="display:none">
-        <label>⚠ Observation obligatoire (écart ≠ 0)</label>
-        <textarea class="t-textarea" onchange="setMunitionObservation(${idx}, this.value)">${mun.observations||''}</textarea>
-      </div>`}
+      ${alerte ? '<div class="t-hint" style="color:var(--t-rouge);margin-top:8px;font-size:12px">⚠ Valeur négative — vérifiez les saisies.</div>' : ''}
     </div>`;
 }
 
@@ -233,94 +227,64 @@ function setMunitionField(idx, champ, val) {
   const mun = ensureCloture().munitions[idx];
   if (!mun) return;
   mun[champ] = parseInt(val, 10) || 0;
+  // Maintenir percues/distribuees en sync avec prevues pour compatibilité export principal
+  if (champ === 'prevues') { mun.distribuees = mun.prevues; mun.percues = mun.prevues; }
+  const consomme = (mun.prevues || 0) - (mun.defaillantes || 0) - (mun.reintegrees || 0);
+  mun.consommees = consomme;
   scheduleAutoSaveCloture();
-  const ecart = calculerEcartMunitions(mun);
-  const ecartEl = document.getElementById('ecart-' + idx);
-  if (ecartEl) {
-    ecartEl.textContent = ecart;
-    ecartEl.className = 't-mun-val t-ecart-val' + (ecart !== 0 ? ' t-ecart-alerte' : '');
+  const el = document.getElementById('consomme-' + idx);
+  if (el) {
+    el.textContent = consomme;
+    el.className = 't-mun-val t-ecart-val' + (consomme < 0 ? ' t-ecart-alerte' : '');
   }
-  const obsWrap = document.getElementById('mun-obs-' + idx);
-  if (obsWrap) obsWrap.style.display = ecart !== 0 ? 'block' : 'none';
 }
 
-function setMunitionObservation(idx, val) {
-  const mun = ensureCloture().munitions[idx];
-  if (!mun) return;
-  mun.observations = val;
-  scheduleAutoSaveCloture();
-}
+/* ── Signature DT via modale (signature.js) ───────────────────────── */
 
-/* ── Signature DT (canvas autonome, sans signature.js) ────────────── */
-
-function _initDTSignaturePad() {
-  const canvas = document.getElementById('dt-sig-canvas');
-  if (!canvas) return;
-  const ratio = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width  = Math.max(1, Math.round(rect.width  * ratio));
-  canvas.height = Math.max(1, Math.round(rect.height * ratio));
-  const ctx = canvas.getContext('2d');
-  ctx.scale(ratio, ratio);
-  ctx.lineWidth   = 2.2;
-  ctx.lineCap     = 'round';
-  ctx.lineJoin    = 'round';
-  ctx.strokeStyle = '#1a1a2e';
-  _dtSigState = { canvas, ctx, drawing: false };
-
-  const existing = TERRAIN_STATE.cloture?.signatureDT;
-  if (existing) {
-    const img = new Image();
-    img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
-    img.src = existing;
-  }
-
-  function getXY(e) {
-    const r = canvas.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - r.left, y: src.clientY - r.top };
-  }
-
-  canvas.addEventListener('pointerdown', e => {
-    if (e.buttons !== 1 && e.pointerType === 'mouse') return;
-    canvas.setPointerCapture(e.pointerId);
-    const { x, y } = getXY(e);
-    _dtSigState.drawing = true;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    e.preventDefault();
-  }, { passive: false });
-
-  canvas.addEventListener('pointermove', e => {
-    if (!_dtSigState.drawing) return;
-    const { x, y } = getXY(e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    e.preventDefault();
-  }, { passive: false });
-
-  const endDraw = () => {
-    if (!_dtSigState.drawing) return;
-    _dtSigState.drawing = false;
-    const dataUrl = canvas.toDataURL('image/png', 0.6);
+function _registerDTSigPad() {
+  registerSigCallback('dt-cloture', (dataUrl) => {
     ensureCloture().signatureDT = dataUrl;
     scheduleAutoSaveCloture();
-    const st = document.getElementById('dt-sig-status');
-    if (st) { st.textContent = '✓ Signé'; st.classList.add('ok'); }
-  };
-
-  canvas.addEventListener('pointerup',     endDraw);
-  canvas.addEventListener('pointerleave',  endDraw);
-  canvas.addEventListener('pointercancel', endDraw);
+    const statusEl = document.getElementById('dt-sig-status');
+    if (statusEl) { statusEl.textContent = '✓ Signé'; statusEl.className = 't-sig-status ok'; }
+    const thumbEl = document.getElementById('dt-sig-thumb');
+    if (thumbEl) { thumbEl.src = dataUrl; thumbEl.style.display = 'block'; }
+  }, {
+    title: 'Signature DT',
+    getExisting: () => TERRAIN_STATE.cloture?.signatureDT || null,
+  });
 }
 
-function clearDTSignature() {
-  const { canvas, ctx } = _dtSigState;
-  if (!canvas) return;
-  const rect = canvas.getBoundingClientRect();
-  ctx.clearRect(0, 0, rect.width, rect.height);
+function openDTSig() {
+  _registerDTSigPad();
+  openSigModal('dt-cloture');
+}
+
+function clearDTSig() {
   ensureCloture().signatureDT = null;
   scheduleAutoSaveCloture();
-  const st = document.getElementById('dt-sig-status');
-  if (st) { st.textContent = 'Non signé'; st.classList.remove('ok'); }
+  renderCloture();
+}
+
+/* ── Validation clôture ────────────────────────────────────────────── */
+
+async function validerCloture() {
+  const cl = ensureCloture();
+  if (!cl.seanceRealisee && !(cl.motifAnnulation || '').trim()) {
+    alert('Veuillez saisir le motif d\'annulation avant de valider.');
+    return;
+  }
+  const munNegatifs = (cl.munitions || []).filter(m =>
+    ((m.prevues || 0) - (m.defaillantes || 0) - (m.reintegrees || 0)) < 0
+  );
+  if (munNegatifs.length > 0) {
+    alert('⚠ Munitions consommées négatives :\n' + munNegatifs.map(m => '• ' + m.ref).join('\n') + '\n\nVérifiez les saisies (Défaillante + Réintégré > Prévu).');
+    return;
+  }
+  cl.cloturee = true;
+  cl.dateClotureTerrain = new Date().toISOString();
+  TERRAIN_STATE.cloture = cl;
+  await dbSaveCloture(cl);
+  renderCloture();
+  setTimeout(goToExport, 300);
 }

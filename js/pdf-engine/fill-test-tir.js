@@ -22,6 +22,7 @@ async function fillTestTirPdf(resultatTireur, tireur, seanceInfo) {
   drawText(page, tireur.nomComplet, coords.header.nomTireur, fonts.bold, 9);
   drawText(page, tireur.unite, coords.header.unite, fonts.regular, 8);
   drawText(page, armeNom, coords.header.arme, fonts.regular, 9);
+  if (coords.header.date) drawText(page, tt.dateTir || seanceInfo.dateTir || '', coords.header.date, fonts.regular, 8);
 
   (coords.sequences || []).forEach(c => {
     const seq = (tt.sequences || []).find(s => s.n === c.n);

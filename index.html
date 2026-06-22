@@ -16,7 +16,10 @@
 
 <header class="t-header">
   <div class="t-title">🎯 Saisie terrain — ISTC / Tir</div>
-  <div id="t-sw-status" class="t-sw-status">—</div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+    <div id="t-sw-status" class="t-sw-status">—</div>
+    <div style="font-size:10px;opacity:0.55;letter-spacing:0.03em">v2.2</div>
+  </div>
 </header>
 
 <main id="t-main">
@@ -41,12 +44,15 @@
   <!-- ── Écran 2 : liste des tireurs ────────────────────────────────── -->
   <section id="screen-liste" class="t-screen" style="display:none">
     <div class="t-card t-card-flat">
-      <h2 id="liste-titre">📋 Tireurs</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <h2 id="liste-titre" style="margin:0">📋 Tireurs</h2>
+        <button type="button" class="t-btn t-btn-secondary t-btn-small" onclick="goToConfigSig()">🖊 Signatures</button>
+      </div>
       <div id="liste-tireurs"></div>
     </div>
     <div class="t-bottom-bar">
       <button class="t-btn t-btn-secondary" onclick="goToImport()">← Séance</button>
-      <button class="t-btn t-btn-primary" onclick="goToExport()">📦 Export / Mail →</button>
+      <button class="t-btn t-btn-primary" onclick="goToCloture()">📋 Clôture →</button>
     </div>
   </section>
 
@@ -54,39 +60,81 @@
   <section id="screen-fiche" class="t-screen" style="display:none">
     <div id="fiche-content"></div>
     <div class="t-bottom-bar">
-      <button class="t-btn t-btn-secondary" onclick="goToListe()">← Liste des tireurs</button>
+      <button id="fiche-back-btn" class="t-btn t-btn-secondary" onclick="goFicheBack()">← Liste des tireurs</button>
     </div>
   </section>
 
-  <!-- ── Écran 4 : export / mail ────────────────────────────────────── -->
+  <!-- ── Écran 6 : configuration des signatures ─────────────────────── -->
+  <section id="screen-config-sig" class="t-screen" style="display:none">
+    <div class="t-card t-card-flat">
+      <h2 style="margin:0 0 4px">🖊 Signatures encadrement</h2>
+      <p class="t-hint" style="margin:0 0 12px">Pré-enregistrez la signature du DT et des MTCs. Elle pourra ensuite être appliquée d'un seul clic dans chaque fiche tireur.</p>
+    </div>
+    <div id="config-sig-content"></div>
+    <div class="t-bottom-bar">
+      <button class="t-btn t-btn-secondary" onclick="goToListe()">← Tireurs</button>
+    </div>
+  </section>
+
+  <!-- ── Écran 4 : clôture terrain ─────────────────────────────────── -->
+  <section id="screen-cloture" class="t-screen" style="display:none">
+    <div id="cloture-content"></div>
+    <div class="t-bottom-bar">
+      <button class="t-btn t-btn-secondary" onclick="goToListe()">← Tireurs</button>
+      <button class="t-btn t-btn-primary" onclick="goToExport()">📦 Export →</button>
+    </div>
+  </section>
+
+  <!-- ── Écran 5 : export / mail ────────────────────────────────────── -->
   <section id="screen-export" class="t-screen" style="display:none">
     <div class="t-card">
       <h2>📦 Export des résultats</h2>
       <div id="export-summary"></div>
-      <button class="t-btn t-btn-primary" onclick="genererExportComplet()">⚙ Générer PDF + JSON</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <button class="t-btn t-btn-primary" style="flex:1" onclick="genererExportJson()">📄 Export JSON</button>
+        <button class="t-btn t-btn-primary" style="flex:1" onclick="genererExportPdf()">📋 Export PDF (ZIP)</button>
+      </div>
       <div id="export-progress" class="t-status"></div>
       <div id="export-result"></div>
     </div>
     <div class="t-card" id="mail-card" style="display:none">
       <h2>✉ Préparer le mail</h2>
-      <p class="t-hint">Le mail contient un résumé de la séance. Les PDF/ZIP générés sont joints automatiquement si votre appareil le permet, sinon téléchargez le ZIP et joignez-le vous-même.</p>
+      <p class="t-hint">Le mail contient un résumé de la séance. Les PDF/ZIP sont joints automatiquement si votre appareil le permet.</p>
       <button class="t-btn t-btn-primary" onclick="preparerMail()">✉ Préparer le mail</button>
     </div>
     <div class="t-bottom-bar">
-      <button class="t-btn t-btn-secondary" onclick="goToListe()">← Liste des tireurs</button>
-      <button class="t-btn t-btn-secondary" onclick="goToCloture()">📋 Clôturer la séance</button>
-    </div>
-  </section>
-
-  <!-- ── Écran 5 : clôture terrain ──────────────────────────────────── -->
-  <section id="screen-cloture" class="t-screen" style="display:none">
-    <div id="cloture-content"></div>
-    <div class="t-bottom-bar">
-      <button class="t-btn t-btn-secondary" onclick="goToExport()">← Export</button>
+      <button class="t-btn t-btn-secondary" onclick="goToCloture()">← Clôture</button>
     </div>
   </section>
 
 </main>
+
+<!-- ── Modale ajout / remplacement de tireur ───────────────────────── -->
+<div id="modal-ajout-tireur" class="t-modal-overlay" style="display:none" ontouchstart="">
+  <div class="t-modal-inner">
+    <h2>+ Ajouter un tireur</h2>
+    <div class="t-fg">
+      <label>Grade</label>
+      <input id="ajout-grade" type="text" class="t-input" placeholder="Ex : SGT, LCL…">
+    </div>
+    <div class="t-fg">
+      <label>Nom <span style="color:var(--t-rouge)">*</span></label>
+      <input id="ajout-nom" type="text" class="t-input" placeholder="NOM (obligatoire)">
+    </div>
+    <div class="t-fg">
+      <label>Prénom</label>
+      <input id="ajout-prenom" type="text" class="t-input" placeholder="Prénom">
+    </div>
+    <div class="t-fg">
+      <label>Unité</label>
+      <input id="ajout-unite" type="text" class="t-input" placeholder="Unité / corps">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button type="button" class="t-btn t-btn-secondary" style="flex:1;margin-top:0" onclick="fermerFormulaireAjout()">Annuler</button>
+      <button type="button" class="t-btn t-btn-primary"   style="flex:1;margin-top:0" onclick="validerAjoutTireur()">Ajouter</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Modale signature plein écran ────────────────────────────────── -->
 <div id="sig-modal" class="t-sig-modal" style="display:none" ontouchstart="">
@@ -125,6 +173,7 @@
 <script src="js/mail.js"></script>
 <script src="js/cloture.js"></script>
 <script src="js/swipe.js"></script>
+<script src="js/config-sig.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -254,6 +254,44 @@ html, body {
 .t-ecart-alerte { color: var(--t-rouge); font-weight: 800; }
 .t-mun-obs-wrap { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--t-border); }
 
+/* ── Badge terrain (tireur ajouté manuellement) ── */
+.t-badge-terrain { background: #e8f4fd; color: #1565c0; }
+
+/* ── Modale générique (ajout tireur, etc.) ── */
+.t-modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,.72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 14px;
+}
+.t-modal-inner {
+  background: var(--t-card-bg); border-radius: 16px;
+  width: 100%; max-width: 500px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.35);
+  max-height: 90vh; overflow-y: auto;
+}
+.t-modal-inner h2 { margin: 0 0 16px; font-size: 17px; }
+
+/* ── Zone de signature MTC avec filigrane identité ── */
+.t-sig-mtc-zone {
+  border: 1px dashed var(--t-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+.t-sig-mtc-watermark {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #c0c4cc;
+  text-transform: uppercase;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--t-border);
+  margin-bottom: 6px;
+}
+
 /* ── Export ── */
 .t-export-doc-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; }
 .t-export-doc-row a { color: var(--t-primary); font-weight: 700; }

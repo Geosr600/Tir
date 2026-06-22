@@ -68,7 +68,7 @@ function _clearStore(storeName) {
 
 function dbSaveSeance(data) {
   return _put('seance', 'current', data).then(() =>
-    _put('meta', 'app', { formatVersionSeance: data.formatVersion, importedAt: new Date().toISOString() })
+    dbSetMeta({ formatVersionSeance: data.formatVersion, importedAt: new Date().toISOString() })
   );
 }
 
@@ -112,4 +112,27 @@ async function dbClearAll() {
   await _clearStore('saisies');
   await _clearStore('meta');
   await _clearStore('cloture');
+}
+
+function dbDeleteSaisie(key) {
+  return _tx('saisies', 'readwrite').then(store => new Promise((res, rej) => {
+    const req = store.delete(key);
+    req.onsuccess = () => res(true);
+    req.onerror   = () => rej(req.error);
+  }));
+}
+
+async function dbSaveSignaturesEncadrement(data) {
+  return dbSetMeta({ signaturesEncadrement: data });
+}
+async function dbGetSignaturesEncadrement() {
+  const m = await dbGetMeta();
+  return (m && m.signaturesEncadrement) || {};
+}
+async function dbSaveTireursAjoutes(arr) {
+  return dbSetMeta({ tireursAjoutes: arr });
+}
+async function dbGetTireursAjoutes() {
+  const m = await dbGetMeta();
+  return (m && m.tireursAjoutes) || [];
 }

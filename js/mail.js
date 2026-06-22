@@ -52,7 +52,7 @@ function _buildDestinataires(seance) {
 
 async function preparerMail() {
   if (!_dernierExportBlobs) {
-    alert('Générez d\'abord les PDF et le JSON (bouton "Générer PDF + JSON").');
+    alert('Générez d\'abord un export (bouton "Export JSON" ou "Export PDF").');
     return;
   }
 

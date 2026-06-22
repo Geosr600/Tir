@@ -25,11 +25,10 @@ function swipeResetNav() {
 /* ── Guards ──────────────────────────────────────────────────────────── */
 
 function _isSigningActive() {
-  // Modale signature ouverte (signatures tireur/formateur par bloc)
-  const modal = document.getElementById('sig-modal');
-  if (modal && modal.style.display === 'flex') return true;
-  // Signature DT inline dans l'écran clôture
-  return typeof _dtSigState !== 'undefined' && _dtSigState.drawing;
+  const sigModal  = document.getElementById('sig-modal');
+  const addModal  = document.getElementById('modal-ajout-tireur');
+  return !!(sigModal && sigModal.style.display === 'flex') ||
+         !!(addModal && addModal.style.display === 'flex');
 }
 
 /* ── Navigation sans repush ──────────────────────────────────────────── */
@@ -40,9 +39,16 @@ function _renderScreen(name) {
       renderListeTireurs();
       showScreen('liste');
       break;
-    case 'fiche':
+    case 'fiche': {
       if (TERRAIN_STATE.currentTireurKey) renderFicheTireur(TERRAIN_STATE.currentTireurKey);
+      const backBtn = document.getElementById('fiche-back-btn');
+      if (backBtn) backBtn.textContent = TERRAIN_STATE.ficheRetourVers === 'config-sig' ? '← Encadrement' : '← Liste des tireurs';
       showScreen('fiche');
+      break;
+    }
+    case 'config-sig':
+      renderConfigSig();
+      showScreen('config-sig');
       break;
     case 'export':
       renderExportSummary();

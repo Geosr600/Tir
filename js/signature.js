@@ -42,6 +42,17 @@ function initSignaturePad(padId, tireurKey, role, bloc) {
   registerSigPad(padId, tireurKey, role, bloc);
 }
 
+// Enregistre un pad avec callback libre (ex. signature DT en clôture, signatures encadrement).
+// opts.title       : titre affiché dans la modale (ex. 'Signature DT')
+// opts.getExisting : fonction () => dataUrl|null pour pré-charger la signature existante
+function registerSigCallback(padId, callback, opts) {
+  _sigPadState[padId] = {
+    callback,
+    title:       (opts && opts.title)       || null,
+    getExisting: (opts && opts.getExisting) || null,
+  };
+}
+
 /* ── Modale signature ────────────────────────────────────────────── */
 
 let _modalActivePadId = null;
@@ -62,9 +73,15 @@ function openSigModal(padId) {
   const title  = document.getElementById('sig-modal-title');
   if (!modal || !canvas) return;
 
-  const roleLabel = st.role === 'tireur' ? 'Tireur' : 'Formateur / MTC';
-  const blocLabel = st.bloc === 'istc'   ? 'ISTC'   : 'Test tir';
-  if (title) title.textContent = `Signature — ${roleLabel} (${blocLabel})`;
+  if (title) {
+    if (st.title) {
+      title.textContent = st.title;
+    } else {
+      const roleLabel = st.role === 'tireur' ? 'Tireur' : 'Formateur / MTC';
+      const blocLabel = st.bloc === 'istc'   ? 'ISTC'   : 'Test tir';
+      title.textContent = `Signature — ${roleLabel} (${blocLabel})`;
+    }
+  }
 
   // Dimensionner le canvas au viewport disponible
   const ratio = window.devicePixelRatio || 1;
@@ -86,9 +103,14 @@ function openSigModal(padId) {
   _modalCtx.fillRect(0, 0, W, H);
 
   // Charger la signature existante si présente
-  const s = getSaisie(st.key);
-  const sigField = st.bloc === 'tir' ? 'tirSignatures' : 'istcSignatures';
-  const existing = s?.[sigField]?.[st.role];
+  let existing = null;
+  if (st.getExisting) {
+    existing = st.getExisting();
+  } else {
+    const s = getSaisie(st.key);
+    const sigField = st.bloc === 'tir' ? 'tirSignatures' : 'istcSignatures';
+    existing = s?.[sigField]?.[st.role];
+  }
   if (existing) {
     const img = new Image();
     img.onload = () => _modalCtx.drawImage(img, 0, 0, W, H);
@@ -125,6 +147,14 @@ function validateSigModal() {
   if (!st) { closeSigModal(); return; }
 
   const dataUrl = _modalCanvas.toDataURL('image/png', 0.6);
+
+  // Pad avec callback libre (ex. signature DT en clôture)
+  if (st.callback) {
+    st.callback(dataUrl);
+    closeSigModal();
+    return;
+  }
+
   const s = getSaisie(st.key);
   if (s) {
     const sigField = st.bloc === 'tir' ? 'tirSignatures' : 'istcSignatures';
@@ -135,7 +165,7 @@ function validateSigModal() {
   }
 
   closeSigModal();
-  if (st.key) renderFicheTireur(st.key); // rafraîchit le thumbnail dans la fiche
+  if (st.key) renderFicheTireur(st.key);
 }
 
 function _wireModalEvents() {

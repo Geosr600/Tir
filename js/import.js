@@ -1,7 +1,7 @@
 /* import.js — import du seance_export.json (input file classique, pas de File System
    Access API — indisponible sur Safari iOS et non fiable sur navigateur mobile Android). */
 
-const IMPORT_FORMAT_VERSION_MAX = 1;
+const IMPORT_FORMAT_VERSION_MAX = 2;
 
 function _categorieParDefaut(seance) {
   // PAFA : pas de catégorie unique évidente, l'utilisateur choisira sur la fiche du tireur.
@@ -22,6 +22,7 @@ function buildDefaultSaisie(tireur, seance) {
     istcLignes: Array.from({ length: NB_LIGNES_CONNAISSANCES }, (_, i) => ({ n: i + 1, couleur: 'vert' })),
     istcCommentairesParLigne: {},
     istcCatalogue: buildCatalogueVide(categorie),
+    istcCatalogueNonEffectue: false,
     istcObservations: '',
     istcDateIstc: seance.dateIstc || '',
     istcSignatures: { tireur: null, formateur: null, dateSignature: null },
@@ -94,7 +95,9 @@ async function handleImportFile(event) {
     );
     if (!ok) { setImportStatus('Import annulé.', ''); return; }
     await dbClearAll();
-    TERRAIN_STATE.saisies = {};
+    TERRAIN_STATE.saisies              = {};
+    TERRAIN_STATE.signaturesEncadrement = {};
+    TERRAIN_STATE.tireursAjoutes        = [];
   }
 
   await dbSaveSeance(seance);
@@ -122,7 +125,7 @@ function renderResumeSeanceCard() {
   if (!seance) { card.style.display = 'none'; return; }
 
   const nbTireurs = (seance.tireurs || []).length;
-  const saisies = Object.values(TERRAIN_STATE.saisies || {});
+  const saisies = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement);
   const nbTermines = saisies.filter(_isSaisieTerminee).length;
 
   content.innerHTML = `
@@ -147,8 +150,11 @@ function _isSaisieTerminee(s) {
 async function confirmResetSeance() {
   if (!confirm('Effacer la séance en cours et toutes les saisies non exportées ?')) return;
   await dbClearAll();
-  TERRAIN_STATE.seance = null;
-  TERRAIN_STATE.saisies = {};
+  TERRAIN_STATE.seance               = null;
+  TERRAIN_STATE.saisies              = {};
+  TERRAIN_STATE.cloture              = null;
+  TERRAIN_STATE.signaturesEncadrement = {};
+  TERRAIN_STATE.tireursAjoutes        = [];
   document.getElementById('resume-seance-card').style.display = 'none';
   setImportStatus('Séance effacée. Importez un nouveau fichier.', '');
 }

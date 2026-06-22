@@ -14,13 +14,15 @@ async function fillIstcPdf(resultatTireur, tireur, seanceInfo) {
   const page = pdfDoc.getPage(0);
   const fonts = await embedHelvetica(pdfDoc);
 
-  const armeNom = (resultatTireur.armesUtilisees || [])
+  const armesIds = resultatTireur.tir?.armesUtilisees || resultatTireur.armesUtilisees || [];
+  const armeNom = armesIds
     .map(id => (seanceInfo.armesDisponibles || []).find(a => a.id === id)?.nom)
     .filter(Boolean).join(', ');
 
   drawText(page, tireur.nomComplet, coords.header.nomTireur, fonts.bold, 9);
   drawText(page, tireur.unite, coords.header.unite, fonts.regular, 8);
   drawText(page, armeNom, coords.header.arme, fonts.regular, 9);
+  if (coords.header.date) drawText(page, istc.dateIstc || seanceInfo.dateIstc || seanceInfo.dateTir || '', coords.header.date, fonts.regular, 8);
 
   (coords.connaissances || []).forEach(c => {
     const ligne = (istc.lignes || []).find(l => l.n === c.n);
