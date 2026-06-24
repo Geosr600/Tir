@@ -91,7 +91,7 @@ function renderListeTireurs() {
 function _statutTireur(s) {
   if (!s.present) return { label: 'Absent', cls: 't-badge-absent' };
   const blocs = s.blocs || [];
-  if (!blocs.length || !blocs[0].categorie) return { label: 'À saisir', cls: 't-badge-todo' };
+  if (!blocs.length || !blocs[0].categorie || !_isSaisieCommencee(s)) return { label: 'À saisir', cls: 't-badge-todo' };
   if (_isSaisieTerminee(s)) {
     let allOk = true;
     let hasNoSafe = false;

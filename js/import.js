@@ -195,6 +195,31 @@ function _isSaisieTerminee(s) {
   return anyScore || allTirNonRealise;
 }
 
+/** Retourne true si l'utilisateur a réellement touché la saisie (au moins une donnée non-défaut). */
+function _isSaisieCommencee(s) {
+  const blocs = s.blocs || [];
+  for (const b of blocs) {
+    if (!b.categorie) continue;
+    if (b.connaissancesPresent === false) return true;
+    if (b.cataloguePresent === false) return true;
+    if (b.testTirPresent === false) return true;
+    if ((b.istcLignes || []).some(l => l.couleur && l.couleur !== 'vert')) return true;
+    if ((b.istcCatalogue || []).some(l => l.couleur && l.couleur !== 'vert')) return true;
+    if ((b.testTirSequences || []).some(sq => sq.score > 0)) return true;
+    if (b.testTirNoSafe) return true;
+    if (Object.keys(b.connaissancesCommentairesParLigne || {}).length) return true;
+    if (Object.keys(b.catalogueCommentairesParLigne || {}).length) return true;
+    if (Object.keys(b.testTirCommentairesParSequence || {}).length) return true;
+    const cs = b.connaissancesSignatures || {};
+    if (cs.tireur || cs.formateur) return true;
+    const is = b.istcSignatures || {};
+    if (is.tireur || is.formateur) return true;
+    const ts = b.tirSignatures || {};
+    if (ts.tireur || ts.formateur) return true;
+  }
+  return false;
+}
+
 function setImportStatus(msg, type) {
   const el = document.getElementById('import-status');
   if (!el) return;

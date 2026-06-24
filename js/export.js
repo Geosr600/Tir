@@ -194,10 +194,11 @@ function renderExportSummary() {
     return;
   }
 
-  const saisies  = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement);
-  const presents = saisies.filter(s => s.present);
-  const termines = presents.filter(_isSaisieTerminee);
-  const non      = presents.filter(s => !_isSaisieTerminee(s));
+  const saisies   = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement);
+  const presents  = saisies.filter(s => s.present);
+  const termines  = presents.filter(_isSaisieTerminee);
+  const commences = presents.filter(s => _isSaisieCommencee(s) && !_isSaisieTerminee(s));
+  const aSaisir   = presents.filter(s => !_isSaisieCommencee(s));
 
   let html = `<div style="font-size:13px;line-height:2">
     <b>Date :</b> ${seance.dateTir || '—'}<br>
@@ -210,8 +211,11 @@ function renderExportSummary() {
     html += `<p class="t-hint" style="color:var(--t-warning);margin-top:8px">⚠ La séance n'est pas encore clôturée. Complétez la clôture avant d'exporter.</p>`;
   }
 
-  if (non.length) {
-    html += `<p class="t-hint" style="color:var(--t-warning)">⚠ ${non.length} tireur(s) sans saisie complète — les PDF seront générés avec les données disponibles.</p>`;
+  if (commences.length) {
+    html += `<p class="t-hint" style="color:var(--t-warning)">⚠ ${commences.length} tireur(s) en cours — les PDF seront générés avec les données disponibles.</p>`;
+  }
+  if (aSaisir.length) {
+    html += `<p class="t-hint" style="color:var(--t-secondary)">ℹ ${aSaisir.length} tireur(s) sans saisie — aucun PDF ne sera généré pour eux.</p>`;
   }
 
   el.innerHTML = html;
@@ -290,10 +294,10 @@ async function genererExportPdf() {
 
   const { resultats, presents, encadrementResultats } = _computeResultats(seance, TERRAIN_STATE.saisies);
 
-  // Exclure les tireurs "À saisir" (présents mais sans catégorie saisie — PAFA non renseigné)
+  // Exclure les tireurs sans aucune donnée saisie
   const presentsPourPdf = presents.filter(s => {
     const blocs = s.blocs || [];
-    return blocs.length > 0 && !!blocs[0].categorie;
+    return blocs.length > 0 && !!blocs[0].categorie && _isSaisieCommencee(s);
   });
 
   for (let i = 0; i < presentsPourPdf.length; i++) {
