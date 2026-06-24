@@ -18,7 +18,7 @@
   <div class="t-title">🎯 Saisie terrain — ISTC / Tir</div>
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
     <div id="t-sw-status" class="t-sw-status">—</div>
-    <div style="font-size:10px;opacity:0.55;letter-spacing:0.03em">v2.3</div>
+    <div style="font-size:10px;opacity:0.55;letter-spacing:0.03em">v4.1</div>
   </div>
 </header>
 
@@ -109,6 +109,23 @@
 
 </main>
 
+<!-- ── Modale commentaire opération ────────────────────────────────── -->
+<div id="modal-commentaire" class="t-modal-overlay" style="display:none" ontouchstart="">
+  <div class="t-modal-inner">
+    <h2 id="comment-modal-titre">Commentaire</h2>
+    <div id="comment-modal-preds" style="display:none;margin-bottom:10px"></div>
+    <div class="t-fg">
+      <label>Commentaire libre</label>
+      <textarea id="comment-modal-textarea" class="t-textarea" rows="4" placeholder="Saisissez un commentaire…"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button type="button" class="t-btn t-btn-secondary" style="flex:1;margin-top:0" onclick="fermerCommentaire()">Annuler</button>
+      <button type="button" class="t-btn t-btn-danger"    style="flex:1;margin-top:0" onclick="document.getElementById('comment-modal-textarea').value='';validerCommentaire()">Supprimer</button>
+      <button type="button" class="t-btn t-btn-primary"   style="flex:1;margin-top:0" onclick="validerCommentaire()">Valider</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Modale ajout / remplacement de tireur ───────────────────────── -->
 <div id="modal-ajout-tireur" class="t-modal-overlay" style="display:none" ontouchstart="">
   <div class="t-modal-inner">
@@ -164,6 +181,7 @@
 <script src="js/db.js"></script>
 <script src="js/signature.js"></script>
 <script src="js/pdf-engine/coords.js"></script>
+<script src="assets/pdf-templates/pdf-templates-data.js"></script>
 <script src="js/pdf-engine/pdf-utils.js"></script>
 <script src="js/pdf-engine/fill-istc.js"></script>
 <script src="js/pdf-engine/fill-test-tir.js"></script>

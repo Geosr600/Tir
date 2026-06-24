@@ -4,35 +4,174 @@
 const IMPORT_FORMAT_VERSION_MAX = 2;
 
 function _categorieParDefaut(seance) {
-  // PAFA : pas de catégorie unique évidente, l'utilisateur choisira sur la fiche du tireur.
   return (seance.typeArme === 'FA' || seance.typeArme === 'PA') ? seance.typeArme : null;
+}
+
+/**
+ * Construit un bloc vide (les 3 parties) pour une arme et une catégorie données.
+ * Si une seule arme est disponible pour la catégorie, elle est pré-sélectionnée.
+ */
+function buildBlocVide(categorie, armeId, seance) {
+  const dateTir  = (seance && seance.dateTir)  || '';
+  const dateIstc = (seance && seance.dateIstc) || '';
+  // Auto-sélection si une seule arme disponible pour cette catégorie
+  if (categorie && !armeId && seance) {
+    const armesForCat = ((seance.armesDisponibles || []).filter(a => a.categorie === categorie));
+    if (armesForCat.length === 1) armeId = armesForCat[0].id;
+  }
+  return {
+    categorie,
+    armeId: armeId || '',
+    // Partie 1 — Connaissances
+    connaissancesPresent:              true,
+    istcLignes:                        categorie ? Array.from({ length: NB_LIGNES_CONNAISSANCES }, (_, i) => ({ n: i + 1, couleur: 'vert' })) : [],
+    connaissancesCommentairesParLigne: {},
+    istcCommentairesParLigne:          {},
+    istcDateIstc:                      dateIstc,
+    connaissancesSignatures:           { tireur: null, formateur: null, dateSignature: null },
+    connaissancesMTCInfo:              null,
+    // Partie 2 — Catalogue
+    cataloguePresent:                  true,
+    istcCatalogueNonEffectue:          false,
+    istcCatalogue:                     buildCatalogueVide(categorie),
+    catalogueCommentairesParLigne:     {},
+    istcObservations:                  '',
+    istcSignatures:                    { tireur: null, formateur: null, dateSignature: null },
+    istcSignatureMTCInfo:              null,
+    // Partie 3 — Test tir
+    testTirPresent:                    true,
+    testTirSequences:                  buildSequencesVides(categorie),
+    testTirNoSafe:                     false,
+    testTirCommentairesParSequence:    {},
+    tirDateTir:                        dateTir,
+    tirSignatures:                     { tireur: null, formateur: null, dateSignature: null },
+    tirSignatureMTCInfo:               null,
+  };
 }
 
 /** Construit l'objet de saisie par défaut (vide) pour un tireur fraîchement importé. */
 function buildDefaultSaisie(tireur, seance) {
-  const categorie = _categorieParDefaut(seance);
+  const typeArme   = seance.typeArme;
+  const armesDispo = seance.armesDisponibles || [];
+
+  let blocs;
+  if (typeArme === 'PAFA') {
+    // PAFA : un bloc vide, l'utilisateur choisit catégorie + arme
+    blocs = [buildBlocVide('', '', seance)];
+  } else {
+    // Mono-catégorie : un bloc pré-rempli avec la première arme de la séance
+    const cat = typeArme; // 'FA' ou 'PA'
+    const premArmeId = (tireur.armesPrevues || [])[0]
+      || ((armesDispo.find(a => a.categorie === cat) || {}).id)
+      || '';
+    blocs = [buildBlocVide(cat, premArmeId, seance)];
+  }
+
   return {
-    nid: tireur.nid || '',
-    badge: tireur.badge || '',
-    nomComplet: tireur.nomComplet,
-    present: true,
-    categorieChoisie: categorie,
-    armesUtilisees: categorie ? (tireur.armesPrevues || []).slice(0, 1) : [],
+    nid:               tireur.nid   || '',
+    badge:             tireur.badge || '',
+    nomComplet:        tireur.nomComplet,
+    present:           true,
     nettoyageEffectue: !!tireur.nettoyagePrevu,
-    istcLignes: Array.from({ length: NB_LIGNES_CONNAISSANCES }, (_, i) => ({ n: i + 1, couleur: 'vert' })),
-    istcCommentairesParLigne: {},
-    istcCatalogue: buildCatalogueVide(categorie),
-    istcCatalogueNonEffectue: false,
-    istcObservations: '',
-    istcDateIstc: seance.dateIstc || '',
-    istcSignatures: { tireur: null, formateur: null, dateSignature: null },
-    testTirSequences: categorie ? buildSequencesVides(categorie) : [],
-    testTirNoSafe: false,
-    testTirCommentaires: '',
-    tirDateTir: seance.dateTir || '',
-    tirSignatures: { tireur: null, formateur: null, dateSignature: null },
+    blocs,
     observationsLibres: '',
   };
+}
+
+/**
+ * Migre une saisie ancienne (v2/v3/v3.1 — champs plats ou testTirTests[]) vers v4 (blocs[]).
+ * Idempotent : si blocs[] existe déjà, retourne sans modifier.
+ */
+function migrerBlocsV4(s) {
+  if (!s) return s;
+  if (Array.isArray(s.blocs) && s.blocs.length > 0) return s;
+
+  const cat = s.categorieChoisie;
+
+  // v3.1 : testTirTests[] existe → créer un bloc par test (Part 3), ISTC partagé sur le 1er
+  const tests = Array.isArray(s.testTirTests) && s.testTirTests.length ? s.testTirTests : null;
+  if (cat && tests) {
+    s.blocs = tests.map((tt, i) => ({
+      categorie: cat,
+      armeId:    tt.armeId || '',
+      // Part 1 — du premier bloc uniquement, les suivants sont vierges
+      connaissancesPresent:              i === 0 ? s.connaissancesPresent !== false : true,
+      istcLignes:                        i === 0 ? (s.istcLignes || []) : Array.from({ length: NB_LIGNES_CONNAISSANCES }, (_, j) => ({ n: j + 1, couleur: 'vert' })),
+      connaissancesCommentairesParLigne: i === 0 ? (s.connaissancesCommentairesParLigne || {}) : {},
+      istcCommentairesParLigne:          i === 0 ? (s.istcCommentairesParLigne || {})          : {},
+      istcDateIstc:                      s.istcDateIstc || '',
+      connaissancesSignatures:           i === 0 ? (s.connaissancesSignatures || { tireur: null, formateur: null, dateSignature: null }) : { tireur: null, formateur: null, dateSignature: null },
+      connaissancesMTCInfo:              i === 0 ? (s.connaissancesMTCInfo || null) : null,
+      // Part 2
+      cataloguePresent:          i === 0 ? s.cataloguePresent !== false : true,
+      istcCatalogueNonEffectue:  i === 0 ? !!s.istcCatalogueNonEffectue : false,
+      istcCatalogue:             i === 0 ? (s.istcCatalogue || []) : buildCatalogueVide(cat),
+      catalogueCommentairesParLigne: i === 0 ? (s.catalogueCommentairesParLigne || {}) : {},
+      istcObservations:          i === 0 ? (s.istcObservations || '') : '',
+      istcSignatures:            i === 0 ? (s.istcSignatures || { tireur: null, formateur: null, dateSignature: null }) : { tireur: null, formateur: null, dateSignature: null },
+      istcSignatureMTCInfo:      i === 0 ? (s.istcSignatureMTCInfo || null) : null,
+      // Part 3 — depuis chaque testTirTest
+      testTirPresent:                 tt.testTirPresent !== false,
+      testTirSequences:               tt.testTirSequences || [],
+      testTirNoSafe:                  !!tt.testTirNoSafe,
+      testTirCommentairesParSequence: tt.testTirCommentairesParSequence || {},
+      tirDateTir:   tt.tirDateTir || s.tirDateTir || '',
+      tirSignatures: tt.tirSignatures || { tireur: null, formateur: null, dateSignature: null },
+      tirSignatureMTCInfo: tt.tirSignatureMTCInfo || null,
+    }));
+  } else if (cat) {
+    // v2/v3 : champs plats → un seul bloc
+    s.blocs = [{
+      categorie: cat,
+      armeId:    (s.armesUtilisees || [])[0] || '',
+      connaissancesPresent:              s.connaissancesPresent !== false,
+      istcLignes:                        s.istcLignes || [],
+      connaissancesCommentairesParLigne: s.connaissancesCommentairesParLigne || {},
+      istcCommentairesParLigne:          s.istcCommentairesParLigne || {},
+      istcDateIstc:                      s.istcDateIstc || '',
+      connaissancesSignatures:           s.connaissancesSignatures || { tireur: null, formateur: null, dateSignature: null },
+      connaissancesMTCInfo:              s.connaissancesMTCInfo || null,
+      cataloguePresent:                  s.cataloguePresent !== false,
+      istcCatalogueNonEffectue:          !!s.istcCatalogueNonEffectue,
+      istcCatalogue:                     s.istcCatalogue || [],
+      catalogueCommentairesParLigne:     s.catalogueCommentairesParLigne || {},
+      istcObservations:                  s.istcObservations || '',
+      istcSignatures:                    s.istcSignatures || { tireur: null, formateur: null, dateSignature: null },
+      istcSignatureMTCInfo:              s.istcSignatureMTCInfo || null,
+      testTirPresent:                    s.testTirPresent !== false,
+      testTirSequences:                  s.testTirSequences || [],
+      testTirNoSafe:                     !!s.testTirNoSafe,
+      testTirCommentairesParSequence:    s.testTirCommentairesParSequence || {},
+      tirDateTir:    s.tirDateTir   || '',
+      tirSignatures: s.tirSignatures || { tireur: null, formateur: null, dateSignature: null },
+      tirSignatureMTCInfo: s.tirSignatureMTCInfo || null,
+    }];
+  } else {
+    s.blocs = [];
+  }
+  return s;
+}
+
+/**
+ * Migre une saisie v2 (ancienne structure) vers v3 en ajoutant les champs manquants.
+ * Appelé avant migrerBlocsV4.
+ */
+function migrerSaisieV2(s) {
+  if (!s) return s;
+  if (s.connaissancesPresent === undefined) s.connaissancesPresent = s.present !== false;
+  if (s.cataloguePresent     === undefined) s.cataloguePresent     = s.present !== false;
+  if (s.testTirPresent       === undefined) s.testTirPresent       = s.present !== false;
+  if (!s.connaissancesCommentairesParLigne) s.connaissancesCommentairesParLigne = s.istcCommentairesParLigne || {};
+  if (!s.catalogueCommentairesParLigne)     s.catalogueCommentairesParLigne     = {};
+  if (!s.testTirCommentairesParSequence)    s.testTirCommentairesParSequence    = {};
+  if (Array.isArray(s.istcCatalogue)) {
+    s.istcCatalogue = s.istcCatalogue.map(l => {
+      if (l.noSafe && l.couleur !== 'rouge') { l = { ...l, couleur: 'rouge' }; }
+      const { noSafe, ...rest } = l;
+      return rest;
+    });
+  }
+  return s;
 }
 
 function buildSequencesVides(categorie) {
@@ -40,8 +179,20 @@ function buildSequencesVides(categorie) {
 }
 
 function buildCatalogueVide(categorie) {
-  const lignes = CATALOGUE_LIBELLES[categorie] || CATALOGUE_LIBELLES.FA;
-  return lignes.map(l => ({ n: l.n, couleur: 'vert', noSafe: false, observation: '' }));
+  const lignes = CATALOGUE_LIBELLES[categorie] || CATALOGUE_LIBELLES.FA || [];
+  return lignes.map(l => ({ n: l.n, couleur: 'vert' }));
+}
+
+function _isSaisieTerminee(s) {
+  if (!s.present) return true;
+  const blocs = s.blocs || [];
+  if (blocs.length === 0) return false;
+  if (blocs.some(b => !b.categorie)) return false;
+  const anyScore = blocs.some(b =>
+    b.testTirPresent !== false && (b.testTirSequences || []).some(sq => sq.score > 0)
+  );
+  const allTirNonRealise = blocs.every(b => b.testTirPresent === false);
+  return anyScore || allTirNonRealise;
 }
 
 function setImportStatus(msg, type) {
@@ -52,7 +203,6 @@ function setImportStatus(msg, type) {
 }
 
 function _lireTexte(file) {
-  // file.text() indisponible sur iOS < 14 — fallback FileReader universel
   if (typeof file.text === 'function') return file.text();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -64,7 +214,7 @@ function _lireTexte(file) {
 
 async function handleImportFile(event) {
   const file = event.target.files && event.target.files[0];
-  event.target.value = ''; // permet de réimporter le même fichier si besoin
+  event.target.value = '';
   if (!file) return;
 
   setImportStatus('Lecture du fichier…', '');
@@ -103,14 +253,16 @@ async function handleImportFile(event) {
   await dbSaveSeance(seance);
   TERRAIN_STATE.seance = seance;
 
-  // N'initialise que les tireurs qui n'ont pas déjà une saisie en cours (réimport de la
-  // même séance après mise à jour côté appli principale : on ne perd pas le travail fait).
   for (const t of seance.tireurs) {
     const key = personKey(t);
     if (!TERRAIN_STATE.saisies[key]) {
       const saisie = buildDefaultSaisie(t, seance);
       TERRAIN_STATE.saisies[key] = saisie;
       await dbSaveSaisie(key, saisie);
+    } else {
+      const migre = migrerBlocsV4(migrerSaisieV2(TERRAIN_STATE.saisies[key]));
+      TERRAIN_STATE.saisies[key] = migre;
+      await dbSaveSaisie(key, migre);
     }
   }
 
@@ -119,13 +271,13 @@ async function handleImportFile(event) {
 }
 
 function renderResumeSeanceCard() {
-  const card = document.getElementById('resume-seance-card');
+  const card    = document.getElementById('resume-seance-card');
   const content = document.getElementById('resume-seance-content');
-  const seance = TERRAIN_STATE.seance;
+  const seance  = TERRAIN_STATE.seance;
   if (!seance) { card.style.display = 'none'; return; }
 
-  const nbTireurs = (seance.tireurs || []).length;
-  const saisies = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement);
+  const nbTireurs  = (seance.tireurs || []).length;
+  const saisies    = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement);
   const nbTermines = saisies.filter(_isSaisieTerminee).length;
 
   content.innerHTML = `
@@ -136,15 +288,6 @@ function renderResumeSeanceCard() {
       <b>Tireurs :</b> ${nbTermines} / ${nbTireurs} saisie(s) terminée(s)
     </div>`;
   card.style.display = 'block';
-}
-
-function _isSaisieTerminee(s) {
-  if (!s.present) return true; // absent = rien à saisir, considéré "traité"
-  if (!s.categorieChoisie) return false;
-  // ISTC : toutes les lignes sont par défaut vertes → considéré fait dès que catégorie choisie.
-  // Test tir : au moins un score saisi (score > 0) indique un passage réel.
-  const tirFait = (s.testTirSequences || []).some(l => l.score > 0);
-  return tirFait;
 }
 
 async function confirmResetSeance() {

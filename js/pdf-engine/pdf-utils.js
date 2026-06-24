@@ -14,15 +14,21 @@ const COULEUR_RGB = {
 const NOIR = rgb(0.1, 0.1, 0.18);
 
 async function loadTemplateBytes(templateName) {
+  // Données embarquées : fonctionne sans serveur (file://) et hors-ligne
+  if (typeof PDF_TEMPLATE_DATA !== 'undefined' && PDF_TEMPLATE_DATA[templateName]) {
+    const b64    = PDF_TEMPLATE_DATA[templateName];
+    const binary = atob(b64);
+    const bytes  = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+  // Fallback fetch (mode PWA servi par un serveur HTTP)
   const url = './assets/pdf-templates/' + templateName + '.pdf';
   let res;
   try {
     res = await fetch(url);
   } catch (e) {
-    throw new Error(
-      'Modèle PDF inaccessible (' + templateName + '). ' +
-      'Rechargez l\'application en ligne depuis cet appareil, puis réessayez.'
-    );
+    throw new Error('Modèle PDF inaccessible (' + templateName + '). Vérifiez que le fichier pdf-templates-data.js est bien inclus.');
   }
   if (!res.ok) throw new Error('Modèle PDF introuvable HTTP ' + res.status + ' : ' + templateName);
   return res.arrayBuffer();
@@ -63,17 +69,22 @@ function drawWrappedText(page, text, coord, font, size, maxWidth, maxLines) {
   });
 }
 
-/** Marque colorée rouge/jaune/vert : rectangle plein si w/h fournis (cases du Catalogue),
-    sinon petit disque centré (lignes Connaissances, sans cellule dimensionnée connue). */
+/** Coche la case correspondant à la couleur : croix vectorielle noire (X).
+    Pour les cases catalogue (w/h fournis), X centré dans la cellule.
+    Pour les cases connaissances (sans w/h), X centré sur le point de coordonnée. */
 function drawColorMark(page, coord, couleur) {
-  if (!coord || !couleur || !COULEUR_RGB[couleur]) return;
-  const color = COULEUR_RGB[couleur];
+  if (!coord || !couleur) return;
   if (coord.w !== undefined && coord.h !== undefined) {
-    const x = Math.min(coord.x, coord.x + coord.w);
-    const y = Math.min(coord.y, coord.y + coord.h);
-    page.drawRectangle({ x: x + 1.5, y: y + 1.5, width: Math.abs(coord.w) - 3, height: Math.abs(coord.h) - 3, color });
+    const cx = coord.x + coord.w / 2;
+    const cy = coord.y + coord.h / 2;
+    const r  = Math.min(Math.abs(coord.w), Math.abs(coord.h)) / 2 - 3;
+    page.drawLine({ start: { x: cx - r, y: cy - r }, end: { x: cx + r, y: cy + r }, thickness: 1.5, color: NOIR });
+    page.drawLine({ start: { x: cx - r, y: cy + r }, end: { x: cx + r, y: cy - r }, thickness: 1.5, color: NOIR });
   } else {
-    page.drawEllipse({ x: coord.x, y: coord.y, xScale: 5, yScale: 5, color });
+    const { x, y } = coord;
+    const r = 4;
+    page.drawLine({ start: { x: x - r, y: y - r }, end: { x: x + r, y: y + r }, thickness: 1.5, color: NOIR });
+    page.drawLine({ start: { x: x - r, y: y + r }, end: { x: x + r, y: y - r }, thickness: 1.5, color: NOIR });
   }
 }
 

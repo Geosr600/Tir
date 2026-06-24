@@ -92,7 +92,9 @@ html, body {
 .t-badge-todo { background: #eceff5; color: #888; }
 .t-badge-progress { background: #fff4d6; color: #b8860b; }
 .t-badge-done { background: #e3f3e2; color: var(--t-vert); }
-.t-badge-absent { background: #f0f0f0; color: #aaa; }
+.t-badge-absent   { background: #f0f0f0; color: #aaa; }
+.t-badge-reussite { background: #e3f3e2; color: #2e7d32; }
+.t-badge-echec    { background: #fdecea; color: #c62828; }
 
 /* ── Fiche tireur ── */
 .t-fiche-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
@@ -134,6 +136,17 @@ html, body {
 }
 .t-nosafe-toggle.on { background: var(--t-rouge); color: #fff; }
 
+.t-nosafe-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 44px;
+  margin-top: 12px; padding: 10px 16px;
+  border: 2px solid #ddd; border-radius: 10px;
+  font-size: 15px; font-weight: 800;
+  cursor: pointer; background: #f5f6fa; color: #888;
+}
+.t-nosafe-btn.on  { background: #b71c1c; color: #fff; border-color: #b71c1c; }
+.t-nosafe-btn:active { opacity: .8; }
+
 .t-input, .t-textarea, .t-select {
   width: 100%; padding: 10px 12px; margin-top: 4px;
   border: 1px solid var(--t-border); border-radius: 8px;
@@ -169,7 +182,8 @@ html, body {
   text-align: center; font-weight: 800; font-size: 15px;
 }
 .t-result-banner.REUSSITE { background: #e3f3e2; color: var(--t-vert); }
-.t-result-banner.ECHEC { background: #fdecea; color: var(--t-rouge); }
+.t-result-banner.ECHEC   { background: #fdecea; color: var(--t-rouge); }
+.t-result-banner.NOSAFE  { background: #b71c1c; color: #fff; }
 
 /* ── Signature — bouton + thumbnail inline ── */
 .t-sig-btn-wrap { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
@@ -256,6 +270,7 @@ html, body {
 
 /* ── Badge terrain (tireur ajouté manuellement) ── */
 .t-badge-terrain { background: #e8f4fd; color: #1565c0; }
+.t-badge-nosafe  { background: #b71c1c; color: #fff; }
 
 /* ── Modale générique (ajout tireur, etc.) ── */
 .t-modal-overlay {
@@ -295,3 +310,39 @@ html, body {
 /* ── Export ── */
 .t-export-doc-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; }
 .t-export-doc-row a { color: var(--t-primary); font-weight: 700; }
+
+/* ── Présence par partie (v3) ── */
+.t-part-toggle { display: flex; gap: 8px; margin: 10px 0 6px; }
+.t-part-toggle .t-btn { margin-top: 0; }
+.t-part-toggle .t-btn.on.present { background: var(--t-vert); color: #fff; }
+.t-part-toggle .t-btn.on.absent  { background: #888; color: #fff; }
+.t-part-subsection { margin-top: 8px; }
+
+/* ── Bouton commentaire par ligne / séquence ── */
+.t-comment-btn {
+  background: none; border: 1.5px solid var(--t-border);
+  border-radius: 6px; padding: 3px 7px; font-size: 14px;
+  cursor: pointer; flex-shrink: 0; color: #888; line-height: 1;
+  transition: border-color .15s, color .15s;
+}
+.t-comment-btn:active { background: #f0f0f0; }
+.t-comment-btn.has-comment { border-color: #1565c0; color: #1565c0; }
+.t-comment-preview {
+  font-size: 11px; color: #1565c0; padding: 3px 6px 3px 24px;
+  background: #e8f4fd; border-radius: 4px; margin: 2px 0 4px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.t-ligne-row--avec-libelle { flex-wrap: wrap; }
+.t-ligne-row--avec-libelle .t-comment-btn { margin-left: auto; }
+.t-seq-header { display: flex; align-items: center; gap: 8px; }
+.t-seq-header .t-comment-btn { margin-left: auto; }
+
+/* ── Blocs multi-armes (collapse/expand) ── */
+.t-tt-bloc { border: 1px solid var(--t-border); border-radius: 10px; padding: 12px; margin-bottom: 12px; background: #f8f9fc; }
+.t-tt-bloc-header { display: flex; align-items: center; justify-content: space-between; }
+.t-tt-bloc-toggle { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; padding: 4px 0; user-select: none; -webkit-user-select: none; }
+.t-tt-bloc-toggle:active { opacity: .75; }
+.t-tt-bloc-title { font-weight: 700; font-size: 14px; color: var(--t-ink); }
+.t-tt-bloc-chevron { font-size: 12px; color: #aaa; margin-left: auto; }
+.t-tt-bloc--alerte { border-color: #f9a825; }
+.t-alerte-arme { background: #fff4d6; color: #b8860b; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 700; margin: 6px 0 10px; }

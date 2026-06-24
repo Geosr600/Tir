@@ -97,7 +97,7 @@ function calculerEliminatoireIstc(lignesConnaissances, catalogueTirs) {
     l => LIGNES_ELIMINATOIRES.includes(l.n) && l.couleur === 'rouge'
   );
   const eliminationCatalogue = (catalogueTirs || []).some(
-    l => l.couleur === 'rouge' || l.noSafe === true
+    l => l.couleur === 'rouge'
   );
   return eliminationConnaissances || eliminationCatalogue;
 }
@@ -140,6 +140,19 @@ function calculerBlocIstc(template, lignesConnaissances, catalogueTirs, commenta
     resultatFinal: calculerResultatIstc(eliminatoire),
     observationsGenerales: observationsGenerales || '',
   };
+}
+
+/**
+ * Retourne true si un bloc est en statut NO SAFE, quelle qu'en soit la source :
+ * - toggle manuel P3 (testTirNoSafe)
+ * - ligne 1-2-3 rouge en P1 (éliminatoire connaissances → NO SAFE auto)
+ * - ligne rouge en P2 catalogue (éliminatoire catalogue → NO SAFE auto)
+ */
+function calculerNoSafeBloc(b) {
+  if (b.testTirNoSafe) return true;
+  const catPourCalc = (b.istcCatalogueNonEffectue || b.cataloguePresent === false)
+    ? [] : (b.istcCatalogue || []);
+  return calculerEliminatoireIstc(b.istcLignes || [], catPourCalc);
 }
 
 /**

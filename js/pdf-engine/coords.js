@@ -9,128 +9,159 @@
    DOIVENT être vérifées visuellement (ouvrir un PDF généré et comparer à l'original) avant
    tout déploiement réel — voir calibration-tool.html pour ajuster ces valeurs si besoin.
 
-   Important : test-tir-fa/pa ont /Rotate 90 dans le PDF source. Les coordonnées ci-dessous
-   sont dans l'espace du FLUX DE CONTENU NON TOURNÉ (= celui dans lequel pdf-lib écrit par
-   défaut via page.drawText/drawRectangle) — ne pas les transformer, la rotation /Rotate
-   s'applique uniformément à l'affichage par le lecteur PDF, contenu original + overlay.
-   Conséquence visuelle : ce qui est une "colonne" à l'écran correspond à un X variable (pas
-   un Y variable) dans ces coordonnées — c'est normal, ne pas "corriger". */
+   Important : test-tir-fa/pa ont /Rotate 90 (CW) dans le PDF source. fill-test-tir.js pousse
+   une CTM [0 1 -1 0 W 0] avant tout dessin → les coordonnées ci-dessous pour ces templates
+   sont en espace PAYSAGE du viewer (x: 0→842, y: 0→595.22, origine bas-gauche).
+   Conversion brut→paysage utilisée : x_l = y_brut, y_l = 595.22 − x_brut. */
 
 const PDF_COORDS = {
 
   'istc-fa': {
     rotate: 0,
     header: {
-      // Le libellé "Identité du tireur (...) : Unité :" est un seul run de texte (non scindé)
-      // dans ce PDF — positions ESTIMÉES par analogie avec istc-pa (même gabarit, colonnes alignées).
-      nomTireur: { x: 268, y: 788.3 },   // estimé
-      unite:     { x: 475, y: 788.3 },   // estimé
-      // "ARME :" est sur la ligne du titre de section (même y), valeur écrite juste après
-      // le libellé sur la même ligne — vérifié empiriquement (génération + extraction texte).
-      arme:      { x: 480, y: 755.3 },
+      nomTireur: {x:270.7, y:787.3},
+      unite:     {x:478,   y:787.3},
+      arme:      {x:480,   y:754.7},
+      date:      {x:43.3,  y:425.3},
     },
-    // Cases couleur directement dessinées sur chaque ligne (pas de légende séparée) :
-    // x fixes par couleur, y = celui de la ligne (même rangée).
-    connaissancesCouleurX: { rouge: 520.42, jaune: 535.29, vert: 550.16 },
+    elimCouleurX: { rouge: 530, vert: 553.3 },
+    connaissancesCouleurX: { rouge: 527.3, jaune: 542, vert: 557.3 },
     connaissances: [
-      {n:1,  y:714.20}, {n:2,  y:688.54}, {n:3,  y:660.23}, {n:4,  y:638.88},
-      {n:5,  y:624.37}, {n:6,  y:609.97}, {n:7,  y:595.58}, {n:8,  y:574.11},
-      {n:9,  y:552.76}, {n:10, y:538.37}, {n:11, y:523.86}, {n:12, y:509.46},
+      {n:1,  markY:719.3, y:714.7},
+      {n:2,  markY:692,   y:688.7},
+      {n:3,  markY:665.3, y:660},
+      {n:4,  markY:644,   y:640},
+      {n:5,  markY:629.3, y:624.7},
+      {n:6,  markY:614,   y:610.7},
+      {n:7,  markY:600,   y:596.7},
+      {n:8,  markY:578.7, y:575.3},
+      {n:9,  markY:556.7, y:553.3},
+      {n:10, markY:542.7, y:539.3},
+      {n:11, markY:528.7, y:525.3},
+      {n:12, markY:513.3, y:510.7},
     ],
-    commentaireColX: 390.88,
-    noSafeColGlobalX: 491.39,
-    // Catalogue : seules 4 rangées confirmées dans le flux (la 5e, "Réglage", n'a pas été
-    // localisée avec certitude — ligne omise du remplissage plutôt que mal positionnée).
+    commentaireColX: 345.3,
+    connSignatures: {
+      tireur:    {x:117.3, y:407.3, w:142.7, h:46.7},
+      formateur: {x:270,   y:407.3, w:106,   h:38.7},
+      mtcNom:    {x:272,   y:427.3},
+    },
+    catalogueCouleurX: { rouge: 494.7, jaune: 522, vert: 545.3 },
+    noSafeColGlobalX: 494.7,
     catalogue: [
-      {n:1, y:301.73, rouge:{x:482.04,y:265.63,w:27.95,h:28.31}, jaune:{x:510.46,y:265.63,w:24.35,h:28.31}, vert:{x:535.29,y:265.63,w:24.35,h:28.31}, observationColX:311.24},
-      {n:2, y:250.40, rouge:{x:482.04,y:243.08,w:27.95,h:21.95}, jaune:{x:510.46,y:243.08,w:24.35,h:21.95}, vert:{x:535.29,y:243.08,w:24.35,h:21.95}, observationColX:311.24},
-      {n:3, y:227.85, rouge:{x:482.04,y:220.53,w:27.95,h:21.95}, jaune:{x:510.46,y:220.53,w:24.35,h:21.95}, vert:{x:535.29,y:220.53,w:24.35,h:21.95}, observationColX:311.24},
-      {n:4, y:205.30, rouge:{x:482.04,y:197.98,w:27.95,h:22.07}, jaune:{x:510.46,y:197.98,w:24.35,h:22.07}, vert:{x:535.29,y:197.98,w:24.35,h:22.07}, observationColX:311.24},
+      {n:1, markY:307.3, y:302.7, observationColX:345.3},
+      {n:2, markY:280.7, y:276,   observationColX:345.3},
+      {n:3, markY:255.3, y:251.3, observationColX:345.3},
+      {n:4, markY:232.7, y:228.7, observationColX:345.3},
+      {n:5, markY:210.7, y:206.7, observationColX:345.3},
     ],
-    // Bloc signatures retenu : le plus bas de page (après la section Catalogue), donc le
-    // bilan final de la fiche. Un 2e bloc existe vers y≈458 (probablement signature
-    // intermédiaire après la seule section Connaissances) — non utilisé pour l'instant.
     signatures: {
-      date:      { x: 57,  y: 173 },
-      tireur:    { x: 148, y: 173, w: 90, h: 40 },
-      formateur: { x: 299, y: 173, w: 90, h: 40 },
-      autorite:  { x: 452, y: 173, w: 90, h: 40 },
+      date:      {x:39.3,  y:143.3},
+      tireur:    {x:106.7, y:126,   w:136.7, h:38},
+      formateur: {x:257.3, y:124.7, w:142.7, h:30.7},
+      autorite:  {x:447.3, y:136,   w:90,    h:40},
+      mtcNom:    {x:258.7, y:142},
     },
   },
 
   'istc-pa': {
     rotate: 0,
     header: {
-      nomTireur: { x: 268, y: 798.0 },
-      unite:     { x: 475, y: 798.0 },
-      arme:      { x: 480, y: 774.8 }, // même principe que istc-fa : sur la ligne du titre de section
+      nomTireur: {x:272,   y:797.3},
+      unite:     {x:478.7, y:798},
+      arme:      {x:480.7, y:774},
+      date:      {x:44,    y:434},
     },
-    connaissancesCouleurX: { rouge: 520.42, jaune: 535.29, vert: 550.16 },
+    elimCouleurX: { rouge: 529.3, vert: 553.3 },
+    connaissancesCouleurX: { rouge: 528.7, jaune: 542, vert: 556.7 },
     connaissances: [
-      {n:1,  y:733.63}, {n:2,  y:707.97}, {n:3,  y:679.66}, {n:4,  y:658.31},
-      {n:5,  y:643.80}, {n:6,  y:629.40}, {n:7,  y:615.01}, {n:8,  y:600.50},
-      {n:9,  y:579.15}, {n:10, y:557.80}, {n:11, y:543.41}, {n:12, y:528.90},
+      {n:1,  markY:738,   y:735.3},
+      {n:2,  markY:713.3, y:708.7},
+      {n:3,  markY:684.7, y:681.3},
+      {n:4,  markY:663.3, y:659.3},
+      {n:5,  markY:648.7, y:645.3},
+      {n:6,  markY:634,   y:630.7},
+      {n:7,  markY:619.3, y:616},
+      {n:8,  markY:605.3, y:602},
+      {n:9,  markY:584,   y:580.7},
+      {n:10, markY:562.7, y:559.3},
+      {n:11, markY:548,   y:544.7},
+      {n:12, markY:533.3, y:530.7},
     ],
-    commentaireColX: 390.88,
-    noSafeColGlobalX: 491.39,
-    // Ligne 1 sans cases couleur dessinées dans ce gabarit (différent de istc-fa) — omise.
+    commentaireColX: 345.3,
+    connSignatures: {
+      tireur:    {x:116.7, y:409.3, w:142,  h:58},
+      formateur: {x:268.7, y:407.3, w:108,  h:50},
+      mtcNom:    {x:270,   y:434},
+    },
+    catalogueCouleurX: { rouge: 494, jaune: 522, vert: 546.7 },
+    noSafeColGlobalX: 496,
     catalogue: [
-      {n:2, y:256.51, rouge:{x:482.04,y:249.20,w:27.95,h:22.07}, jaune:{x:510.46,y:249.20,w:24.35,h:22.07}, vert:{x:535.29,y:249.20,w:24.35,h:22.07}, observationColX:311.24},
-      {n:3, y:233.96, rouge:{x:482.04,y:226.77,w:27.95,h:21.95}, jaune:{x:510.46,y:226.77,w:24.35,h:21.95}, vert:{x:535.29,y:226.77,w:24.35,h:21.95}, observationColX:311.24},
-      {n:4, y:211.54, rouge:{x:482.04,y:204.22,w:27.95,h:21.95}, jaune:{x:510.46,y:204.22,w:24.35,h:21.95}, vert:{x:535.29,y:204.22,w:24.35,h:21.95}, observationColX:311.24},
+      {n:1, markY:286.7, y:282.7, observationColX:345.3},
+      {n:2, markY:261.3, y:256.7, observationColX:345.3},
+      {n:3, markY:238.7, y:235.3, observationColX:345.3},
+      {n:4, markY:216.7, y:212.7, observationColX:345.3},
     ],
     signatures: {
-      date:      { x: 57,  y: 179 },
-      tireur:    { x: 148, y: 179, w: 90, h: 40 },
-      formateur: { x: 299, y: 179, w: 90, h: 40 },
-      autorite:  { x: 452, y: 179, w: 90, h: 40 },
+      date:      {x:37.3,  y:150},
+      tireur:    {x:102,   y:133.3, w:144.7, h:38.7},
+      formateur: {x:258.7, y:130.7, w:137.3, h:30.7},
+      autorite:  {x:0,     y:0,     w:90,    h:40}, // à calibrer
+      mtcNom:    {x:258.7, y:147.3},
     },
   },
 
   'test-tir-fa': {
     rotate: 90,
     header: {
-      nomTireur: { x: 76,  y: 18  },
-      unite:     { x: 76,  y: 630 },
-      arme:      { x: 81,  y: 700 }, // dans la case ARME (box x:76.5 y:625.4 w:20.0 h:159.8)
+      nomTireur: {x:234,   y:524.6},
+      unite:     {x:667.3, y:524.6},
+      arme:      {x:675.3, y:505.9},
+      date:      {x:21.3,  y:146.6},
     },
-    // x variable par séquence, y constant (colonne Score) — conséquence de /Rotate 90.
+    scoreX:          758,
+    commentaireColX: 542,
     sequences: [
-      {n:1, x:145.0, y:540.8}, {n:2, x:172.8, y:540.8}, {n:3, x:200.9, y:540.8}, {n:4, x:229.0, y:540.8},
-      {n:5, x:257.0, y:540.8}, {n:6, x:285.1, y:540.8}, {n:7, x:313.2, y:540.8}, {n:8, x:341.6, y:540.8},
+      {n:1, markY:451.9}, {n:2, markY:421.9}, {n:3, markY:393.9}, {n:4, markY:366.6},
+      {n:5, markY:338.6}, {n:6, markY:309.9}, {n:7, markY:281.9}, {n:8, markY:254.6},
     ],
-    total:    { x: 368.9, y: 731.8 },
-    // Cases REUSSITE/ECHEC pré-imprimées (puces décoratives, pas des cases vides) : repère
-    // visuel positionné juste devant le libellé concerné plutôt que dans la puce elle-même.
-    resultatMark: { reussite: { x: 388, y: 552 }, echec: { x: 401, y: 552 } },
-    // ZONE INCERTAINE — colonnes/rangées de signature déduites des bordures de tableau,
-    // correspondance exacte non confirmée visuellement. À valider avant déploiement réel.
+    total:        {x:747.3, y:229.9},
+    resultatMark: {
+      reussite: {x:542,   y:190.6},
+      echec:    {x:542.7, y:177.9},
+    },
+    commentaires: {x:184.7, y:204.6},
     signatures: {
-      date:      { x: 396, y: 57 },
-      tireur:    { x: 447, y: 57, w: 50, h: 40 },
-      formateur: { x: 504, y: 57, w: 50, h: 40 },
-      autorite:  { x: 561, y: 57, w: 50, h: 40 },
+      tireur:    {x:112.7, y:122.6, w:121.3, h:41.3},
+      formateur: {x:332,   y:122.6, w:123.3, h:42.7},
+      mtcNom:    {x:327.3, y:143.9},
     },
   },
 
   'test-tir-pa': {
     rotate: 90,
     header: {
-      nomTireur: { x: 76,  y: 18  },
-      unite:     { x: 76,  y: 627 },
-      arme:      { x: 81,  y: 700 },
+      nomTireur: {x:232.7, y:525.2},
+      unite:     {x:664,   y:525.2},
+      arme:      {x:672,   y:506.6},
+      date:      {x:26,    y:219.2},
     },
+    scoreX:          757.3,
+    commentaireColX: 540,
     sequences: [
-      {n:1, x:140.1, y:540.8}, {n:2, x:158.1, y:540.8}, {n:3, x:181.1, y:540.8},
-      {n:4, x:204.4, y:540.8}, {n:5, x:222.4, y:540.8}, {n:6, x:245.2, y:540.8}, {n:7, x:269.7, y:540.8},
+      {n:1, markY:456.6}, {n:2, markY:437.9}, {n:3, markY:414.6},
+      {n:4, markY:391.9}, {n:5, markY:373.2}, {n:6, markY:350.6}, {n:7, markY:326.6},
     ],
-    total:    { x: 293.7, y: 730.0 },
-    resultatMark: { reussite: { x: 313, y: 552 }, echec: { x: 326, y: 552 } },
+    total:        {x:741.3, y:305.2},
+    resultatMark: {
+      reussite: {x:542,   y:267.2},
+      echec:    {x:542.7, y:254.6},
+    },
+    commentaires: {x:188,  y:282.6},
     signatures: {
-      date:      { x: 321, y: 57 },
-      tireur:    { x: 372, y: 57, w: 50, h: 40 },
-      formateur: { x: 429, y: 57, w: 50, h: 40 },
-      autorite:  { x: 486, y: 57, w: 50, h: 40 },
+      tireur:    {x:114,   y:197.2, w:133.3, h:44},
+      formateur: {x:328.7, y:195.9, w:137.3, h:46.7},
+      mtcNom:    {x:333.3, y:217.2},
     },
   },
 };

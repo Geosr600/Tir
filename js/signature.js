@@ -78,7 +78,17 @@ function openSigModal(padId) {
       title.textContent = st.title;
     } else {
       const roleLabel = st.role === 'tireur' ? 'Tireur' : 'Formateur / MTC';
-      const blocLabel = st.bloc === 'istc'   ? 'ISTC'   : 'Test tir';
+      const bm2 = st.bloc && st.bloc.match(/^b(\d+)-(connaissance|istc|tir)$/);
+      const partLabel = !bm2 ? (st.bloc || '—')
+        : bm2[2] === 'connaissance' ? 'Connaissances'
+        : bm2[2] === 'istc'         ? 'Catalogue ISTC'
+        : 'Test tir';
+      const blocNum   = bm2 ? parseInt(bm2[1]) + 1 : -1;
+      const s2 = st.key ? getSaisie(st.key) : null;
+      const nbBlocs = (s2 && s2.blocs) ? s2.blocs.length : 1;
+      const blocLabel = blocNum > 0
+        ? (nbBlocs > 1 ? `Bloc ${blocNum} — ${partLabel}` : partLabel)
+        : partLabel;
       title.textContent = `Signature — ${roleLabel} (${blocLabel})`;
     }
   }
@@ -108,8 +118,15 @@ function openSigModal(padId) {
     existing = st.getExisting();
   } else {
     const s = getSaisie(st.key);
-    const sigField = st.bloc === 'tir' ? 'tirSignatures' : 'istcSignatures';
-    existing = s?.[sigField]?.[st.role];
+    const bm = st.bloc && st.bloc.match(/^b(\d+)-(connaissance|istc|tir)$/);
+    if (bm) {
+      const b = (s?.blocs || [])[parseInt(bm[1], 10)];
+      if (b) {
+        if (bm[2] === 'connaissance') existing = b.connaissancesSignatures?.[st.role] || null;
+        else if (bm[2] === 'istc')    existing = b.istcSignatures?.[st.role] || null;
+        else if (bm[2] === 'tir')     existing = b.tirSignatures?.[st.role] || null;
+      }
+    }
   }
   if (existing) {
     const img = new Image();
@@ -157,10 +174,26 @@ function validateSigModal() {
 
   const s = getSaisie(st.key);
   if (s) {
-    const sigField = st.bloc === 'tir' ? 'tirSignatures' : 'istcSignatures';
-    if (!s[sigField]) s[sigField] = { tireur: null, formateur: null, dateSignature: null };
-    s[sigField][st.role] = dataUrl;
-    s[sigField].dateSignature = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+    const bm = st.bloc && st.bloc.match(/^b(\d+)-(connaissance|istc|tir)$/);
+    if (bm) {
+      const b = (s.blocs || [])[parseInt(bm[1], 10)];
+      if (b) {
+        if (bm[2] === 'connaissance') {
+          if (!b.connaissancesSignatures) b.connaissancesSignatures = { tireur: null, formateur: null, dateSignature: null };
+          b.connaissancesSignatures[st.role]      = dataUrl;
+          b.connaissancesSignatures.dateSignature = today;
+        } else if (bm[2] === 'istc') {
+          if (!b.istcSignatures) b.istcSignatures = { tireur: null, formateur: null, dateSignature: null };
+          b.istcSignatures[st.role]      = dataUrl;
+          b.istcSignatures.dateSignature = today;
+        } else if (bm[2] === 'tir') {
+          if (!b.tirSignatures) b.tirSignatures = { tireur: null, formateur: null, dateSignature: null };
+          b.tirSignatures[st.role]      = dataUrl;
+          b.tirSignatures.dateSignature = today;
+        }
+      }
+    }
     scheduleAutoSave(st.key);
   }
 

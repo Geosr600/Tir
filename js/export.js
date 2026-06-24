@@ -19,53 +19,81 @@ function _findTireurSeance(saisie, tireurs) {
   ) || null;
 }
 
-/** Calcule les blocs résultat (istc + tir) pour chaque tireur. Synchrone, sans I/O. */
+/** Calcule les blocs résultat (istc + tir par bloc) pour chaque tireur. Synchrone, sans I/O. */
 function _computeResultats(seance, saisies) {
-  // Exclure les saisies encadrement (enc-*) du flux tireurs principal
   const saisiesList = Object.values(saisies || {}).filter(s => !s.isEncadrement);
   const presents    = saisiesList.filter(s => s.present);
   const absents     = saisiesList.filter(s => !s.present);
   const resultats   = [];
 
   for (const saisie of presents) {
-    const cat = saisie.categorieChoisie;
     const srcTireur  = _findTireurSeance(saisie, seance.tireurs);
     const tireurInfo = {
       nomComplet: saisie.nomComplet,
       unite: (srcTireur && srcTireur.unite) || seance.unite || '',
     };
 
-    const cataloguePourCalc = saisie.istcCatalogueNonEffectue ? [] : (saisie.istcCatalogue || []);
+    // v4 : blocs[]
+    const blocsSource = saisie.blocs || [];
+    const blocsResultats = blocsSource.map(b => {
+      const cat = b.categorie;
+      if (!cat) return null;
 
-    const istcBlocBase = calculerBlocIstc(
-      cat ? _templateIstc(cat) : null,
-      saisie.istcLignes               || [],
-      cataloguePourCalc,
-      saisie.istcCommentairesParLigne || {},
-      saisie.istcObservations         || ''
-    );
-    const istcBloc = cat ? {
-      ...istcBlocBase,
-      arme:                 cat,
-      dateIstc:             saisie.istcDateIstc || seance.dateIstc || '',
-      signatures:           saisie.istcSignatures || { tireur: null, formateur: null, dateSignature: null },
-      catalogueNonEffectue: !!saisie.istcCatalogueNonEffectue,
-    } : istcBlocBase;
+      const catPourCalc = (b.istcCatalogueNonEffectue || b.cataloguePresent === false)
+        ? [] : (b.istcCatalogue || []);
+      const commConnaissances = b.connaissancesCommentairesParLigne || b.istcCommentairesParLigne || {};
+      const commCatalogue     = b.catalogueCommentairesParLigne || {};
+      const commSeq           = b.testTirCommentairesParSequence || {};
+      const commTirTexte      = Object.keys(commSeq).length
+        ? Object.entries(commSeq).filter(([, v]) => v).map(([n, v]) => `Séq ${n} : ${v}`).join('\n')
+        : '';
 
-    const tirBlocBase = cat ? calculerBlocTestTir(
-      _templateTestTir(cat),
-      cat,
-      saisie.testTirSequences    || [],
-      !!saisie.testTirNoSafe,
-      saisie.testTirCommentaires || ''
-    ) : null;
-    const tirBloc = tirBlocBase ? {
-      ...tirBlocBase,
-      arme:           cat,
-      dateTir:        saisie.tirDateTir || seance.dateTir || '',
-      armesUtilisees: saisie.armesUtilisees || [],
-      signatures:     saisie.tirSignatures || { tireur: null, formateur: null, dateSignature: null },
-    } : null;
+      const istcBase = calculerBlocIstc(
+        _templateIstc(cat), b.istcLignes || [], catPourCalc, commConnaissances, b.istcObservations || ''
+      );
+      const istcBloc = {
+        ...istcBase,
+        arme:                          cat,
+        armeId:                        b.armeId || '',
+        dateIstc:                      b.istcDateIstc || seance.dateIstc || '',
+        signatures:                    b.istcSignatures || { tireur: null, formateur: null, dateSignature: null },
+        connaissancesSignatures:       b.connaissancesSignatures || { tireur: null, formateur: null, dateSignature: null },
+        catalogueDateTir:              b.catalogueDateTir || b.tirDateTir || seance.dateTir || '',
+        catalogueNonEffectue:          !!b.istcCatalogueNonEffectue,
+        catalogueCommentairesParLigne: commCatalogue,
+        connaissancesMTCInfo:          b.connaissancesMTCInfo || null,
+        istcSignatureMTCInfo:          b.istcSignatureMTCInfo || null,
+      };
+
+      const effectiveNoSafe = calculerNoSafeBloc(b);
+      const tirBase = calculerBlocTestTir(
+        _templateTestTir(cat), cat, b.testTirSequences || [], effectiveNoSafe, commTirTexte
+      );
+      const tirBloc = {
+        ...tirBase,
+        armeId:                  b.armeId || '',
+        arme:                    cat,
+        dateTir:                 b.tirDateTir || seance.dateTir || '',
+        armesUtilisees:          [b.armeId].filter(Boolean),
+        signatures:              b.tirSignatures || { tireur: null, formateur: null, dateSignature: null },
+        commentairesParSequence: commSeq,
+        testTirPresent:          b.testTirPresent !== false,
+        tirSignatureMTCInfo:     b.tirSignatureMTCInfo || null,
+      };
+
+      return {
+        categorie:             cat,
+        armeId:                b.armeId || '',
+        connaissancesPresent:  b.connaissancesPresent !== false,
+        cataloguePresent:      b.cataloguePresent !== false,
+        testTirPresent:        b.testTirPresent !== false,
+        istc:                  istcBloc,
+        tir:                   tirBloc,
+      };
+    }).filter(Boolean);
+
+    const firstBloc = blocsResultats[0] || null;
+    const firstCat  = firstBloc ? firstBloc.categorie : null;
 
     resultats.push({
       nid:               saisie.nid   || '',
@@ -74,13 +102,17 @@ function _computeResultats(seance, saisies) {
       present:           true,
       source:            saisie.ajouteTerrain ? 'terrain' : 'seance',
       nettoyageEffectue: !!saisie.nettoyageEffectue,
-      istc:              istcBloc,
-      tir:               tirBloc,
-      observationsLibres:     saisie.observationsLibres     || '',
-      remplaceKeyOriginal:    saisie.remplaceKeyOriginal     || undefined,
-      istcSignatureMTCInfo:   saisie.istcSignatureMTCInfo    || undefined,
-      tirSignatureMTCInfo:    saisie.tirSignatureMTCInfo     || undefined,
-      _cat:       cat,
+      blocs:             blocsResultats,
+      // Legacy compat v3/v3.1
+      istc:              firstBloc?.istc || null,
+      tir:               firstBloc?.tir  || null,
+      tirs:              blocsResultats.map(b => b.tir),
+      connaissancesPresent: firstBloc ? firstBloc.connaissancesPresent : false,
+      cataloguePresent:     firstBloc ? firstBloc.cataloguePresent     : false,
+      testTirPresent:       !blocsResultats.length || blocsResultats.some(b => b.testTirPresent),
+      observationsLibres:      saisie.observationsLibres    || '',
+      remplaceKeyOriginal:     saisie.remplaceKeyOriginal   || undefined,
+      _cat:       firstCat,
       _nomF:      _nomFichierSafe(saisie.nomComplet),
       _tireurInfo: tireurInfo,
     });
@@ -94,7 +126,8 @@ function _computeResultats(seance, saisies) {
       present:           false,
       status:            saisie.status || 'absent',
       remplacePar:       saisie.remplacePar || undefined,
-      armesUtilisees:    [],
+      blocs:             [],
+      tirs:              [],
       nettoyageEffectue: false,
       istc:              null,
       tir:               null,
@@ -102,17 +135,20 @@ function _computeResultats(seance, saisies) {
     });
   }
 
-  // Résultats encadrement (saisies enc-* avec catégorie choisie)
+  // Résultats encadrement (saisies enc-* avec blocs)
   const encadrementResultats = [];
   for (const [k, s] of Object.entries(saisies || {})) {
-    if (!k.startsWith('enc-') || !s.isEncadrement || !s.categorieChoisie) continue;
+    if (!k.startsWith('enc-') || !s.isEncadrement) continue;
     const role = k.slice(4);
     const enc  = (seance.encadrement || []).find(e => e.role === role);
     if (!enc) continue;
-    const cat = s.categorieChoisie;
-    const catPourCalc = s.istcCatalogueNonEffectue ? [] : (s.istcCatalogue || []);
-    const istcBase = calculerBlocIstc(_templateIstc(cat), s.istcLignes || [], catPourCalc, {}, s.istcObservations || '');
-    const tirBase  = calculerBlocTestTir(_templateTestTir(cat), cat, s.testTirSequences || [], !!s.testTirNoSafe, s.testTirCommentaires || '');
+    const blocs0 = s.blocs || [];
+    const b0 = blocs0.find(b => b.categorie);
+    if (!b0) continue;
+    const cat = b0.categorie;
+    const catPourCalc = b0.istcCatalogueNonEffectue ? [] : (b0.istcCatalogue || []);
+    const istcBase = calculerBlocIstc(_templateIstc(cat), b0.istcLignes || [], catPourCalc, {}, b0.istcObservations || '');
+    const tirBase  = calculerBlocTestTir(_templateTestTir(cat), cat, b0.testTirSequences || [], !!b0.testTirNoSafe, '');
     encadrementResultats.push({
       role,
       grade:      enc.grade      || '',
@@ -120,8 +156,8 @@ function _computeResultats(seance, saisies) {
       prenom:     enc.prenom     || '',
       nomComplet: enc.nomComplet || '',
       categorie:  cat,
-      istc: { ...istcBase, arme: cat, dateIstc: s.istcDateIstc || seance.dateIstc || '', signatures: s.istcSignatures || {} },
-      tir:  { ...tirBase,  arme: cat, dateTir:  s.tirDateTir   || seance.dateTir  || '', signatures: s.tirSignatures  || {} },
+      istc: { ...istcBase, arme: cat, dateIstc: b0.istcDateIstc || seance.dateIstc || '', signatures: b0.istcSignatures || {} },
+      tir:  { ...tirBase,  arme: cat, dateTir:  b0.tirDateTir   || seance.dateTir  || '', signatures: b0.tirSignatures  || {} },
     });
   }
 
@@ -137,7 +173,7 @@ function _buildJsonExport(seance, resultats, encadrementResultats) {
     return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
   });
   return {
-    version_schema:        '2.1',
+    version_schema:        '4.0',
     seanceId:              seance.seanceId,
     exportedFromTerrainAt: exportedAt,
     tireurs:               tireursNettoyes,
@@ -254,33 +290,53 @@ async function genererExportPdf() {
 
   const { resultats, presents, encadrementResultats } = _computeResultats(seance, TERRAIN_STATE.saisies);
 
-  for (let i = 0; i < presents.length; i++) {
-    const saisie = presents[i];
-    _setProgress(`(${i + 1}/${presents.length}) ${saisie.nomComplet}…`, '');
+  // Exclure les tireurs "À saisir" (présents mais sans catégorie saisie — PAFA non renseigné)
+  const presentsPourPdf = presents.filter(s => {
+    const blocs = s.blocs || [];
+    return blocs.length > 0 && !!blocs[0].categorie;
+  });
+
+  for (let i = 0; i < presentsPourPdf.length; i++) {
+    const saisie = presentsPourPdf[i];
+    _setProgress(`(${i + 1}/${presentsPourPdf.length}) ${saisie.nomComplet}…`, '');
 
     const resultatTireur = resultats.find(r => r.present &&
       (saisie.nid ? r.nid === saisie.nid : r.nomComplet === saisie.nomComplet)
     );
-    if (!resultatTireur || !resultatTireur._cat) continue;
+    if (!resultatTireur) continue;
 
-    const cat  = resultatTireur._cat;
-    const nomF = resultatTireur._nomF;
-    const info = resultatTireur._tireurInfo;
+    const nomF  = resultatTireur._nomF;
+    const info  = resultatTireur._tireurInfo;
+    const blocs = resultatTireur.blocs && resultatTireur.blocs.length
+      ? resultatTireur.blocs
+      : (resultatTireur._cat ? [{ categorie: resultatTireur._cat, armeId: '', istc: resultatTireur.istc, tir: resultatTireur.tir, connaissancesPresent: true, cataloguePresent: true, testTirPresent: true }] : []);
 
-    try {
-      const bytes = await fillIstcPdf(resultatTireur, info, seance);
-      if (bytes) { zip.file(`ISTC_${cat}_${nomF}.pdf`, bytes); nbPdfOk++; }
-    } catch (e) {
-      erreurs.push(`ISTC ${saisie.nomComplet} : ${e.message}`);
-      console.error('fillIstcPdf', e);
-    }
+    for (let bi = 0; bi < blocs.length; bi++) {
+      const b      = blocs[bi];
+      const cat    = b.categorie;
+      if (!cat) continue;
+      const armeNomF = _nomFichierSafe(b.armeId || `arme${bi + 1}`);
+      const suffix   = blocs.length > 1 ? `_${armeNomF}` : '';
 
-    try {
-      const bytes = await fillTestTirPdf(resultatTireur, info, seance);
-      if (bytes) { zip.file(`TestTir_${cat}_${nomF}.pdf`, bytes); nbPdfOk++; }
-    } catch (e) {
-      erreurs.push(`TestTir ${saisie.nomComplet} : ${e.message}`);
-      console.error('fillTestTirPdf', e);
+      if (b.connaissancesPresent !== false || b.cataloguePresent !== false) {
+        try {
+          const bytes = await fillIstcPdf({ ...resultatTireur, istc: b.istc, _cat: cat }, info, seance);
+          if (bytes) { zip.file(`ISTC_${cat}_${nomF}${suffix}.pdf`, bytes); nbPdfOk++; }
+        } catch (e) {
+          erreurs.push(`ISTC ${saisie.nomComplet}${suffix} : ${e.message}`);
+          console.error('fillIstcPdf', e);
+        }
+      }
+
+      if (b.testTirPresent !== false) {
+        try {
+          const bytes = await fillTestTirPdf({ ...resultatTireur, tir: b.tir, _cat: cat }, info, seance);
+          if (bytes) { zip.file(`TestTir_${cat}_${nomF}${suffix}.pdf`, bytes); nbPdfOk++; }
+        } catch (e) {
+          erreurs.push(`TestTir ${saisie.nomComplet}${suffix} : ${e.message}`);
+          console.error('fillTestTirPdf', e);
+        }
+      }
     }
   }
 
@@ -314,7 +370,7 @@ async function genererExportPdf() {
   _dlBlob(zipBlob, zipFileName);
 
   let resultHtml = `<div style="margin-top:8px;font-size:13px;line-height:1.9">
-    ✓ <b>${nbPdfOk}</b> PDF générés (${presents.filter(s => s.categorieChoisie).length * 2} attendus)<br>
+    ✓ <b>${nbPdfOk}</b> PDF générés<br>
     ✓ JSON inclus dans le ZIP<br>
     ✓ ZIP : <code>${zipFileName}</code>
   </div>`;

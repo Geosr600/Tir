@@ -59,15 +59,22 @@ function calculerEcartMunitions(mun) {
 }
 
 function _bilanIstcAuto() {
-  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement && s.present && s.categorieChoisie);
-  const reussis = presents.filter(s => !calculerEliminatoireIstc(s.istcLignes || [], s.istcCatalogue || []));
+  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement && s.present && (s.blocs||[]).some(b=>b.categorie));
+  const reussis = presents.filter(s =>
+    (s.blocs||[]).filter(b=>b.categorie).every(b => {
+      const catPourCalc = (b.istcCatalogueNonEffectue || b.cataloguePresent === false) ? [] : (b.istcCatalogue||[]);
+      return !calculerEliminatoireIstc(b.istcLignes||[], catPourCalc);
+    })
+  );
   return { total: presents.length, reussis: reussis.length };
 }
 
 function _bilanTirAuto() {
-  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement && s.present && s.categorieChoisie);
+  const presents = Object.values(TERRAIN_STATE.saisies || {}).filter(s => !s.isEncadrement && s.present && (s.blocs||[]).some(b=>b.categorie));
   const reussis = presents.filter(s =>
-    calculerResultatTestTir(s.categorieChoisie, calculerTotalTestTir(s.testTirSequences || []), s.testTirNoSafe) === 'REUSSITE'
+    (s.blocs||[]).filter(b=>b.categorie && b.testTirPresent !== false).every(b =>
+      calculerResultatTestTir(b.categorie, calculerTotalTestTir(b.testTirSequences||[]), b.testTirNoSafe) === 'REUSSITE'
+    )
   );
   return { total: presents.length, reussis: reussis.length };
 }

@@ -102,7 +102,12 @@ async function initApp() {
   const sigEnc    = await dbGetSignaturesEncadrement();
   const tirsAjout = await dbGetTireursAjoutes();
   TERRAIN_STATE.seance               = seance;
-  TERRAIN_STATE.saisies              = saisies   || {};
+  // Migrer les saisies v2/v3/v3.1 chargées depuis IndexedDB vers v4 (blocs[])
+  const saisiesMigrees = {};
+  for (const [k, v] of Object.entries(saisies || {})) {
+    saisiesMigrees[k] = migrerBlocsV4(migrerSaisieV2(v));
+  }
+  TERRAIN_STATE.saisies              = saisiesMigrees;
   TERRAIN_STATE.cloture              = cloture   || null;
   TERRAIN_STATE.signaturesEncadrement = sigEnc    || {};
   TERRAIN_STATE.tireursAjoutes        = tirsAjout || [];
